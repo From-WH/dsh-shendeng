@@ -1,0 +1,46 @@
+{
+  "name": "@local/shen-deng",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "神灯：读取工作区，把模糊的许愿收敛成可执行的说明。",
+  "exports": {
+    ".": "./index.js",
+    "./client": "./client.js",
+    "./locale/*.json": "./locale/*.json",
+    "./icon": "./icon.svg"
+  },
+  "files": [
+    "index.js",
+    "client.js",
+    "schema.js",
+    "vendor/*.mjs",
+    "cordis.patch.yml",
+    "locale/en.json",
+    "locale/zh.json",
+    "icon.svg"
+  ],
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    },
+    "client": {
+      "platform": "web",
+      "immediately": true,
+      "inject": [
+        "@deepseek-ai/dsh-client-ui-conversation"
+      ]
+    }
+  },
+  "license": "MIT",
+  "keywords": [
+    "deepseek-harness",
+    "dsh-plugin",
+    "wish-check",
+    "prompt",
+    "requirements"
+  ],
+  "engines": {
+    "dsh": ">=0.2.1-rc.0"
+  }
+}

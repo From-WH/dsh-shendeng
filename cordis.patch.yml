@@ -1,0 +1,4 @@
+- insert:
+    - id: shen-deng
+      name: '@local/shen-deng'
+      config: {}

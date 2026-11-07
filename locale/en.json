@@ -1,0 +1,10 @@
+{
+  "meta": {
+    "title": "Lamp · wish check",
+    "description": "Reads the workspace structure and audits a wish across six dimensions — deliverable, destination, audience, constraints, acceptance, and scope — then reports what is still missing, a default for each gap, and a ready-to-use brief."
+  },
+  "tool": {
+    "lampRefine": "Wish check",
+    "lampScan": "Workspace structure"
+  }
+}

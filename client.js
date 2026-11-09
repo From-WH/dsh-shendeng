@@ -52,8 +52,15 @@ window.__ModuleLoader__.load({
         statsPending: '尚未体检',
         statsChecks: '已体检 {n} 次',
         statsGaps: '拦截 {n} 处歧义',
-        cfgIntro: '神灯会按下面的表格检查你的需求；表格行就是检查项。',
-        cfgTplLabel: '一键套用场景',
+        cfgTitle: '神灯 · 体检维度',
+        cfgOn: '项',
+        cfgUnsaved: '有未保存的修改',
+        cfgIntro: '神灯会按下面的表格检查你的需求；每一行就是一条检查项。',
+        cfgPhLabel: '检查项名称，如：调性',
+        cfgPhMatch: '幽默, 严肃, /字数?\s*\d+/',
+        cfgPhAsk: '要问用户什么？',
+        cfgPhSuggest: '不问时默认怎么做？',
+        cfgTplLabel: '套用场景',
         cfgTplApplied: '已套用模板，可继续微调，别忘了保存',
         cfgReadonly: '当前环境只读，无法保存。',
         cfgAdd: '自己加一条',
@@ -112,8 +119,15 @@ window.__ModuleLoader__.load({
         statsPending: 'no checks yet',
         statsChecks: '{n} wish checks',
         statsGaps: '{n} gaps caught',
+        cfgTitle: 'Lamp · check dimensions',
+        cfgOn: 'checks',
+        cfgUnsaved: 'Unsaved changes',
         cfgIntro: 'The lamp checks your wish against the rows below.',
-        cfgTplLabel: 'Quick start',
+        cfgPhLabel: 'Check name, e.g. Tone',
+        cfgPhMatch: 'light, formal, /\d+ words/',
+        cfgPhAsk: 'What should the lamp ask?',
+        cfgPhSuggest: 'Default when not asked?',
+        cfgTplLabel: 'Scenarios',
         cfgTplApplied: 'Template applied — tweak if you like, then save',
         cfgReadonly: 'Read-only environment; saving is disabled.',
         cfgAdd: 'Add one',
@@ -1212,6 +1226,7 @@ window.__ModuleLoader__.load({
       const [rows, setRows] = React.useState(seed);
       const [status, setStatus] = React.useState(null);
       const [dirty, setDirty] = React.useState(false);
+      const [activeTemplate, setActiveTemplate] = React.useState(null);
 
       const edit = function (index, key, value) {
         setDirty(true);
@@ -1228,6 +1243,7 @@ window.__ModuleLoader__.load({
       /** Fill the table from a scenario template; null means "restore built-ins". */
       const applyTemplate = function (tpl) {
         setDirty(true);
+        setActiveTemplate(tpl.key);
         setStatus(t('cfgTplApplied'));
         const source = tpl.dims === null ? BUILT_IN_TEMPLATE : tpl.dims;
         setRows(source.map(function (d) {
@@ -1278,95 +1294,224 @@ window.__ModuleLoader__.load({
         }
       };
 
-      const inputStyle = {
-        flex: '1 1 120px',
-        minWidth: 0,
-        padding: '3px 6px',
-        border: '0.5px solid var(--dsw-alias-border-l2)',
-        borderRadius: 'var(--dsw-radius-sm, 6px)',
-        background: 'var(--dsw-alias-bg-layer-1)',
-        color: 'var(--dsw-alias-label-primary)',
-        font: 'inherit',
-        fontSize: 11.5,
+      const cfg = {
+        wrap: {
+          display: 'flex', flexDirection: 'column', gap: 14,
+          padding: '14px 16px 16px',
+          borderRadius: 14,
+          border: '1px solid color-mix(in srgb, var(--dsw-alias-brand-primary) 26%, var(--dsw-alias-border-l1))',
+          // Solid layer first: a browser without color-mix still gets a surface.
+          background: 'var(--dsw-alias-bg-layer-1)',
+          backgroundImage:
+            'radial-gradient(120% 140% at 4% 0%, color-mix(in srgb, var(--dsw-alias-brand-primary) 9%, transparent), transparent 58%),'
+            + 'radial-gradient(110% 130% at 96% 4%, color-mix(in srgb, #ff9ee0 7%, transparent), transparent 62%)',
+          boxShadow: 'inset 0 1px 0 color-mix(in srgb, #fff 6%, transparent), 0 1px 18px color-mix(in srgb, #000 26%, transparent)',
+          color: 'var(--dsw-alias-label-primary)',
+          fontSize: 12,
+          position: 'relative',
+          overflow: 'hidden',
+        },
+        header: { display: 'flex', alignItems: 'flex-start', gap: 10 },
+        headText: { flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: 2 },
+        title: {
+          fontSize: 13, fontWeight: 600, letterSpacing: '.04em',
+          color: 'var(--dsw-alias-label-primary)',
+        },
+        sub: { fontSize: 11, lineHeight: '16px', color: 'var(--dsw-alias-label-secondary)' },
+        badgeRow: { display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' },
+        tplChip: function (active) {
+          return {
+            border: '1px solid ' + (active
+              ? 'color-mix(in srgb, var(--dsw-alias-brand-primary) 55%, transparent)'
+              : 'var(--dsw-alias-border-l2)'),
+            background: active
+              ? 'color-mix(in srgb, var(--dsw-alias-brand-primary) 16%, var(--dsw-alias-bg-layer-2))'
+              : 'var(--dsw-alias-bg-layer-2)',
+            color: active ? 'var(--dsw-alias-label-primary)' : 'var(--dsw-alias-label-secondary)',
+            borderRadius: 999, padding: '3px 11px', cursor: 'pointer',
+            font: 'inherit', fontSize: 11.5, letterSpacing: '.02em',
+            transition: 'background 200ms ease, border-color 200ms ease, color 200ms ease',
+          };
+        },
+        card: {
+          position: 'relative',
+          display: 'grid',
+          gridTemplateColumns: '30px minmax(0,1fr)',
+          columnGap: 10, rowGap: 8,
+          padding: '11px 12px 12px 10px',
+          borderRadius: 11,
+          border: '1px solid var(--dsw-alias-border-l1)',
+          background: 'var(--dsw-alias-bg-layer-2)',
+          transition: 'border-color 200ms ease',
+        },
+        idx: {
+          gridRow: '1 / span 2',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          width: 24, height: 24, borderRadius: 7,
+          border: '1px solid color-mix(in srgb, var(--dsw-alias-brand-primary) 45%, transparent)',
+          color: 'var(--dsw-alias-brand-primary)',
+          fontSize: 11, fontWeight: 600, fontVariantNumeric: 'tabular-nums',
+          background: 'var(--dsw-alias-bg-layer-2)',
+          alignSelf: 'start',
+        },
+        nameRow: { display: 'flex', gap: 8, alignItems: 'center', minWidth: 0 },
+        field: { display: 'flex', flexDirection: 'column', gap: 3, minWidth: 0 },
+        label: {
+          fontSize: 10.5, letterSpacing: '.06em', textTransform: 'uppercase',
+          color: 'var(--dsw-alias-label-secondary)', opacity: .85,
+        },
+        input: {
+          width: '100%', boxSizing: 'border-box',
+          padding: '5px 8px',
+          border: '1px solid var(--dsw-alias-border-l2)',
+          borderRadius: 7,
+          background: 'var(--dsw-alias-bg-base)',
+          color: 'var(--dsw-alias-label-primary)',
+          font: 'inherit', fontSize: 12,
+          outline: 'none',
+          transition: 'border-color 160ms ease, box-shadow 160ms ease',
+        },
+        row2: { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 },
+        del: {
+          border: '1px solid var(--dsw-alias-border-l2)',
+          background: 'none',
+          color: 'var(--dsw-alias-state-error-primary)',
+          borderRadius: 6, padding: '2px 8px', cursor: 'pointer',
+          font: 'inherit', fontSize: 11,
+        },
+        ghostBtn: {
+          border: '1px dashed color-mix(in srgb, var(--dsw-alias-brand-primary) 40%, var(--dsw-alias-border-l2))',
+          background: 'var(--dsw-alias-bg-layer-2)',
+          color: 'var(--dsw-alias-label-secondary)',
+          borderRadius: 9, padding: '7px 10px', cursor: 'pointer',
+          font: 'inherit', fontSize: 11.5, letterSpacing: '.02em',
+        },
+        footer: {
+          display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap',
+          paddingTop: 10,
+          borderTop: '1px solid var(--dsw-alias-border-l1)',
+        },
+        save: function (on) {
+          return {
+            border: '1px solid ' + (on
+              ? 'color-mix(in srgb, var(--dsw-alias-brand-primary) 60%, transparent)'
+              : 'var(--dsw-alias-border-l2)'),
+            background: on
+              ? 'linear-gradient(180deg, color-mix(in srgb, var(--dsw-alias-brand-primary) 26%, var(--dsw-alias-bg-layer-2)), color-mix(in srgb, var(--dsw-alias-brand-primary) 12%, var(--dsw-alias-bg-layer-2)))'
+              : 'transparent',
+            color: on ? 'var(--dsw-alias-label-primary)' : 'var(--dsw-alias-label-secondary)',
+            borderRadius: 8, padding: '5px 16px',
+            cursor: on ? 'pointer' : 'default',
+            font: 'inherit', fontSize: 12, fontWeight: on ? 600 : 400,
+            letterSpacing: '.03em',
+            transition: 'all 200ms ease',
+          };
+        },
+        status: { fontSize: 11, letterSpacing: '.02em' },
       };
 
-      return h('div', { style: { display: 'flex', flexDirection: 'column', gap: 10, color: 'var(--dsw-alias-label-primary)', fontSize: 12 } },
-        h('div', { style: { display: 'flex', alignItems: 'center', gap: 8 } },
-          h('span', { style: { color: 'var(--dsw-alias-label-secondary)', flex: 1 } },
-            snapshot && snapshot.writable === false ? t('cfgReadonly') : t('cfgIntro')),
-          h('button', {
-            type: 'button', onClick: add,
-            style: { border: '0.5px solid var(--dsw-alias-border-l2)', background: 'none', color: 'var(--dsw-alias-label-secondary)', borderRadius: 6, padding: '2px 8px', cursor: 'pointer', font: 'inherit' },
-          }, t('cfgAdd')),
-        ),
-        h('div', { style: { display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' } },
-          h('span', { style: { color: 'var(--dsw-alias-label-secondary)' } }, t('cfgTplLabel')),
-          DIMENSION_TEMPLATES.map(function (tpl) {
-            return h('button', {
-              key: tpl.key,
+      const liveCards = function () {
+        return DIMENSION_TEMPLATES.map(function (tpl) {
+          return h('div', { key: tpl.key, style: { display: 'inline-flex' } },
+            h('button', {
               type: 'button',
               onClick: function () { applyTemplate(tpl); },
-              style: {
-                border: '0.5px solid var(--dsw-alias-border-l2)',
-                background: 'var(--dsw-alias-bg-layer-2)',
-                color: 'var(--dsw-alias-label-primary)',
-                borderRadius: 999,
-                padding: '2px 10px',
-                cursor: 'pointer',
-                font: 'inherit',
-                fontSize: 11.5,
-              },
-            }, t(tpl.key));
-          }),
+              style: cfg.tplChip(activeTemplate === tpl.key),
+            }, t(tpl.key)));
+        });
+      };
+
+      return h('div', { style: cfg.wrap },
+        // decorative corner marks
+        h('span', { 'aria-hidden': true, style: { position: 'absolute', top: 6, right: 6, width: 14, height: 14, borderTop: '1px solid color-mix(in srgb, var(--dsw-alias-brand-primary) 50%, transparent)', borderRight: '1px solid color-mix(in srgb, var(--dsw-alias-brand-primary) 50%, transparent)', borderTopRightRadius: 5, pointerEvents: 'none' } }),
+        h('span', { 'aria-hidden': true, style: { position: 'absolute', bottom: 6, left: 6, width: 14, height: 14, borderBottom: '1px solid color-mix(in srgb, #ff9ee0 42%, transparent)', borderLeft: '1px solid color-mix(in srgb, #ff9ee0 42%, transparent)', borderBottomLeftRadius: 5, pointerEvents: 'none' } }),
+
+        h('div', { style: cfg.header },
+          h('div', { style: cfg.headText },
+            h('div', { style: cfg.title }, t('cfgTitle')),
+            h('div', { style: cfg.sub },
+              snapshot && snapshot.writable === false ? t('cfgReadonly') : t('cfgIntro')),
+          ),
+          h('span', {
+            style: {
+              flex: 'none', fontSize: 10, letterSpacing: '.1em', textTransform: 'uppercase',
+              padding: '2px 8px', borderRadius: 999,
+              border: '1px solid color-mix(in srgb, var(--dsw-alias-brand-primary) 45%, transparent)',
+              color: 'var(--dsw-alias-brand-primary)',
+              background: 'var(--dsw-alias-bg-layer-2)',
+            },
+          }, String(rows.length) + ' ' + t('cfgOn')),
+        ),
+
+        h('div', { style: { display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' } },
+          h('span', { style: { fontSize: 10.5, letterSpacing: '.08em', textTransform: 'uppercase', color: 'var(--dsw-alias-label-secondary)', opacity: .85 } }, t('cfgTplLabel')),
+          liveCards(),
         ),
 
         rows.map(function (row, index) {
           return h('div', {
             key: index,
-            style: {
-              display: 'grid', gridTemplateColumns: '86px 1fr 1fr', gap: '6px 8px',
-              padding: 8, border: '0.5px solid var(--dsw-alias-border-l1)', borderRadius: 8,
-            },
+            style: cfg.card,
+            onMouseEnter: function (e) { e.currentTarget.style.borderColor = 'color-mix(in srgb, var(--dsw-alias-brand-primary) 42%, transparent)'; },
+            onMouseLeave: function (e) { e.currentTarget.style.borderColor = 'var(--dsw-alias-border-l1)'; },
           },
-            h('span', { style: { gridColumn: '1 / 2', color: 'var(--dsw-alias-label-secondary)', alignSelf: 'center' } }, t('cfgFieldId')),
-            h('input', { value: row.id, onChange: function (e) { edit(index, 'id', e.target.value); }, style: inputStyle, placeholder: 'tone' }),
-            h('span', { style: { alignSelf: 'center', display: 'flex', justifyContent: 'flex-end' } },
-              h('button', {
-                type: 'button', onClick: function () { remove(index); },
-                style: { border: '0.5px solid var(--dsw-alias-border-l2)', background: 'none', color: 'var(--dsw-alias-state-error-primary)', borderRadius: 6, padding: '2px 8px', cursor: 'pointer', font: 'inherit' },
-              }, t('cfgRemove'))),
-            h('span', { style: { color: 'var(--dsw-alias-label-secondary)', alignSelf: 'center' } }, t('cfgFieldLabel')),
-            h('input', { value: row.label, onChange: function (e) { edit(index, 'label', e.target.value); }, style: inputStyle, placeholder: '调性' }),
-            h('span'),
-            h('span', { style: { color: 'var(--dsw-alias-label-secondary)', alignSelf: 'center' } }, t('cfgFieldMatch')),
-            h('div', { style: { gridColumn: '2 / 4', display: 'flex', flexDirection: 'column', gap: 4 } },
-              h('input', { value: row.match, onChange: function (e) { edit(index, 'match', e.target.value); }, style: inputStyle, placeholder: '幽默, 严肃, /字数?\s*\d+/' }),
-              h('span', { style: { fontSize: 10.5, color: 'var(--dsw-alias-label-secondary)' } }, t('cfgMatchHint'))),
-            h('span', { style: { color: 'var(--dsw-alias-label-secondary)', alignSelf: 'center' } }, t('cfgFieldAsk')),
-            h('input', { value: row.ask, onChange: function (e) { edit(index, 'ask', e.target.value); }, style: inputStyle }),
-            h('span'),
-            h('span', { style: { color: 'var(--dsw-alias-label-secondary)', alignSelf: 'center' } }, t('cfgFieldSuggest')),
-            h('input', { value: row.suggest, onChange: function (e) { edit(index, 'suggest', e.target.value); }, style: inputStyle }),
-            h('span'),
+            h('span', { style: cfg.idx }, String(index + 1).padStart(2, '0')),
+            h('div', { style: cfg.nameRow },
+              h('input', {
+                value: row.label,
+                onChange: function (e) { edit(index, 'label', e.target.value); },
+                style: { ...cfg.input, fontWeight: 600 },
+                placeholder: t('cfgPhLabel'),
+                title: t('cfgFieldLabel'),
+              }),
+              h('input', {
+                value: row.id,
+                onChange: function (e) { edit(index, 'id', e.target.value); },
+                style: { ...cfg.input, width: 110, flex: 'none', fontFamily: 'var(--dsw-font-markdown-code-block-small, ui-monospace, monospace)', fontSize: 11, opacity: .8 },
+                placeholder: 'id',
+                title: t('cfgFieldId'),
+              }),
+              h('button', { type: 'button', onClick: function () { remove(index); }, style: cfg.del, title: t('cfgRemove') }, t('cfgRemove')),
+            ),
+            h('div', null),
+            h('div', { style: { display: 'flex', flexDirection: 'column', gap: 8, minWidth: 0 } },
+              h('div', { style: cfg.field },
+                h('span', { style: cfg.label }, t('cfgFieldMatch')),
+                h('input', {
+                  value: row.match,
+                  onChange: function (e) { edit(index, 'match', e.target.value); },
+                  style: cfg.input,
+                  placeholder: t('cfgPhMatch'),
+                }),
+                h('span', { style: { fontSize: 10, color: 'var(--dsw-alias-label-secondary)', opacity: .7 } }, t('cfgMatchHint')),
+              ),
+              h('div', { style: cfg.row2 },
+                h('div', { style: cfg.field },
+                  h('span', { style: cfg.label }, t('cfgFieldAsk')),
+                  h('input', { value: row.ask, onChange: function (e) { edit(index, 'ask', e.target.value); }, style: cfg.input, placeholder: t('cfgPhAsk') }),
+                ),
+                h('div', { style: cfg.field },
+                  h('span', { style: cfg.label }, t('cfgFieldSuggest')),
+                  h('input', { value: row.suggest, onChange: function (e) { edit(index, 'suggest', e.target.value); }, style: cfg.input, placeholder: t('cfgPhSuggest') }),
+                ),
+              ),
+            ),
           );
         }),
-        h('div', { style: { display: 'flex', alignItems: 'center', gap: 8 } },
-          h('button', {
-            type: 'button', onClick: save, disabled: !dirty || busyUnsupported(),
-            style: {
-              border: '0.5px solid var(--dsw-alias-border-l2)', background: 'var(--dsw-alias-bg-layer-2)',
-              color: dirty ? 'var(--dsw-alias-label-primary)' : 'var(--dsw-alias-label-secondary)',
-              borderRadius: 6, padding: '3px 12px', cursor: dirty ? 'pointer' : 'default', font: 'inherit',
-            },
-          }, t('cfgSave')),
+
+        h('button', { type: 'button', onClick: add, style: cfg.ghostBtn }, '+ ' + t('cfgAdd')),
+
+        h('div', { style: cfg.footer },
+          h('button', { type: 'button', onClick: save, disabled: !dirty || busyUnsupported(), style: cfg.save(dirty && !busyUnsupported()) }, t('cfgSave')),
           dirty ? h('button', {
             type: 'button', onClick: revert,
-            style: { border: '0', background: 'none', color: 'var(--dsw-alias-label-secondary)', cursor: 'pointer', font: 'inherit' },
+            style: { border: '0', background: 'none', color: 'var(--dsw-alias-label-secondary)', cursor: 'pointer', font: 'inherit', fontSize: 11.5 },
           }, t('cfgRevert')) : null,
+          dirty ? h('span', { style: { ...cfg.status, color: 'var(--dsw-alias-state-warn-primary)' } }, t('cfgUnsaved')) : null,
           status !== null
             ? h('span', {
                 role: 'status',
-                style: { color: /失败|错误|fail/i.test(status) ? 'var(--dsw-alias-state-error-primary)' : 'var(--dsw-alias-label-secondary)' },
+                style: { ...cfg.status, color: /失败|错误|fail/i.test(status) ? 'var(--dsw-alias-state-error-primary)' : 'var(--dsw-alias-label-secondary)' },
               }, status)
             : null,
         ),

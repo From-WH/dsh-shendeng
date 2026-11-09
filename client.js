@@ -10,7 +10,7 @@
  * (`meta.shenDeng`), so the card never re-parses model-facing prose.
  */
 window.__ModuleLoader__.load({
-  id: '@local/shen-deng',
+  id: 'dsh-shendeng',
   factory(require) {
     const React = require('react');
     const h = React.createElement;
@@ -998,7 +998,7 @@ window.__ModuleLoader__.load({
         const id = 'shen-deng/lamp-console.css';
         if (document.querySelector('style[data-plugin-css="' + id + '"]') !== null) return undefined;
         const tag = document.createElement('style');
-        tag.dataset.plugin = '@local/shen-deng';
+        tag.dataset.plugin = 'dsh-shendeng';
         tag.dataset.pluginCss = id;
         tag.textContent = LAMP_CSS;
         document.head.appendChild(tag);

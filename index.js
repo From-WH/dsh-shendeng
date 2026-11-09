@@ -196,7 +196,9 @@ const DEFAULT_DIMENSIONS = [
   {
     id: 'artifact',
     label: '交付物',
-    match: ['网站','网页','页面','插件','脚本','程序','应用','app','cli','命令行','工具','文档','报告','文章','文案','图片','海报','图','表格','excel','ppt','幻灯片','视频','封面','接口','api','函数','组件','游戏','机器人','bot','模型','数据库','配置','主题','按钮','动画','原型','demo','项目','系统','功能','文件','这行','这一行','函数名','变量',
+    // Concrete nouns only. Bare 图/文件/功能/项目 match almost any sentence
+    // and then the brief treats a vague wish as if the deliverable was named.
+    match: ['网站','网页','页面','插件','脚本','程序','应用','app','cli','命令行','工具','文档','报告','文章','文案','邮件','周报','简历','翻译','translate','email','图片','海报','表格','excel','ppt','幻灯片','视频','封面','接口','api','函数','组件','游戏','机器人','bot','模型','数据库','按钮','动画','原型','demo',
       '.js','.mjs','.cjs','.ts','.tsx','.jsx','.py','.go','.rs','.java','.rb','.php','.css','.html','.md','.json','.yml','.yaml','.toml','.sh','.svg','.png','.jpg','.jpeg','.docx','.xlsx','.pptx','.pdf'],
     ask: '最终要拿到什么？一个文件、一个能跑的程序，还是一段文字？',
     suggest: '先定一个可打开、可运行的产物，而不是“一套方案”。',
@@ -204,7 +206,7 @@ const DEFAULT_DIMENSIONS = [
   {
     id: 'destination',
     label: '落点',
-    match: ['放到','保存到','输出到','写在','目录','路径','文件夹','markdown','word','excel','pdf','json','yaml','仓库','项目里','现有','已有','接进','集成'],
+    match: ['放到','保存到','输出到','写在','目录','路径','文件夹','markdown','word','excel','pdf','json','yaml','仓库','项目里','现有','已有','接进','集成','发出去','发到','复制到'],
     ask: '它应该落在哪里？新建文件、改进现有文件，还是只给结论？',
     suggest: '默认在当前工作区新建一个独立目录，不覆盖已有文件。',
     // The one dimension with workspace evidence: naming an existing entry here
@@ -214,28 +216,31 @@ const DEFAULT_DIMENSIONS = [
   {
     id: 'audience',
     label: '受众与语气',
-    match: ['给','面向','用户','读者','同事','老板','客户','新人','团队','专业','口语','幽默','正式','简洁','通俗','严肃','好玩','小朋友','面试','答辩'],
+    // "给" alone matches 给我, which names the speaker, not an audience.
+    match: ['面向','写给','读者','同事','老板','客户','新人','团队','用户','专业','口语','幽默','正式','简洁','通俗','严肃','好玩','小朋友','面试','答辩'],
     ask: '这是给谁看的？决定用词深度、长度和语气。',
     suggest: '默认按“聪明但不懂这个领域的人”来写，少术语、多例子。',
   },
   {
     id: 'constraints',
     label: '硬约束',
-    match: ['必须','不要','只能','限制','字数','长度','版本','技术栈','react','vue','python','node','不能','兼容','风格','颜色','配色','无依赖','离线','预算'],
+    match: ['必须','不要','只能','不能','限制','字数','长度','版本','技术栈','react','vue','python','node','兼容','风格','配色','无依赖','离线','预算','不加','别加','不超过','不少于','至少','最多','字以内','字以上','字左右','/\\d+\\s*字/','no new dependenc','without new dependenc','do not add'],
     ask: '有什么不能动的前提？技术栈、字数、必须复用的东西。',
     suggest: '默认不加新依赖，复用工作区已有的工具链。',
   },
   {
     id: 'acceptance',
     label: '验收标准',
-    match: ['成功','验收','测试','能跑','可用','通过','准确','覆盖','效果','标准','检查','保证','不报错','完美','满意'],
+    // "测试" and "效果" alone fire on complaints ("测试挂了", "效果不好").
+    match: ['验收','能跑','跑通','通过','可用','不报错','即可','就算完成','算完成','算做完','就能用','就能看','能看到','打开就能','测试通过','跑测试','测试要过','npm test','must pass','tests pass','node --check'],
     ask: '怎样算做完了？一条能当场验证的判据最有用。',
     suggest: '默认以“打开就能看到结果 / 跑通一次真实输入”为验收。',
   },
   {
     id: 'scope',
     label: '范围',
-    match: ['全部','整个','所有','只','仅','部分','第一版','mvp','先做','初版','简化','完整','每一步','细节','框架','维度','每次'],
+    // "只" alone matches 只是问. Scope needs a bound, not the character.
+    match: ['第一版','mvp','先做','初版','简化','最小','这一版','全量','全部','整个','只做','只改','只写','只动','仅做','仅改','不要改别的','别的不改','不动其他','其他不改','only that','only this','first version','this version'],
     ask: '这一版做到哪算够？全量还是先要一个最小可用版本。',
     suggest: '默认先交一个能端到端跑通的最小版本，再逐步加。',
   },
@@ -247,27 +252,42 @@ function escapePhrase(phrase) {
 }
 
 /**
+ * One phrase as a regex source.
+ *
+ * `/…/` is a caller-supplied pattern. A leading-dot token is a file extension
+ * and must not match inside a longer suffix. A Latin word is bounded so "app"
+ * does not fire inside "happy" and "word" does not fire inside "password".
+ * Chinese phrases stay substrings: there is no word boundary to lean on, so
+ * the lists themselves have to be long enough not to be ambiguous.
+ */
+function phraseToSource(phrase) {
+  const trimmed = phrase.trim();
+  const wrapped = /^\/(.+)\/([a-z]*)$/i.exec(trimmed);
+  if (wrapped !== null) {
+    try {
+      new RegExp(wrapped[1]);
+      return wrapped[1];
+    } catch {
+      /* a broken pattern is still a literal phrase */
+    }
+  }
+  if (/^\.[a-z0-9]+$/i.test(trimmed)) return `${escapePhrase(trimmed)}(?![a-z0-9])`;
+  if (/^[a-z][a-z0-9.+_-]*$/i.test(trimmed)) return `\\b${escapePhrase(trimmed)}\\b`;
+  return escapePhrase(trimmed);
+}
+
+/**
  * Compile one dimension's `match` list into a matcher.
  *
  * A plain string matches as a literal substring (case-insensitive); `/…/`
- * syntax is accepted as a regular expression for callers that need one. File
- * extensions are matched literally, which is why `match` lists spell them
- * without the backslash the old hand-written regexes needed.
+ * syntax is accepted as a regular expression for callers that need one.
  */
 function compileMatcher(match) {
   if (match instanceof RegExp) return match;
   if (typeof match === 'string') {
     const trimmed = match.trim();
-    const literal = /^\/(.+)\/([a-z]*)$/i.exec(trimmed);
-    if (literal !== null) {
-      try {
-        return new RegExp(literal[1], literal[2]);
-      } catch {
-        /* fall through to a literal match */
-      }
-    }
     if (trimmed === '') return null;
-    return new RegExp(escapePhrase(trimmed), 'i');
+    return new RegExp(phraseToSource(trimmed), 'i');
   }
   if (Array.isArray(match)) {
     const phrases = match.filter((item) => typeof item === 'string' && item.trim() !== '');
@@ -276,7 +296,7 @@ function compileMatcher(match) {
     // to every list, which made any wish mentioning "index.js" count as
     // addressing the audience, the scope, everything — extensions belong to
     // whichever dimension explicitly lists them.
-    return new RegExp(`(?:${phrases.map(escapePhrase).join('|')})`, 'i');
+    return new RegExp(`(?:${phrases.map(phraseToSource).join('|')})`, 'i');
   }
   return null;
 }
@@ -321,11 +341,36 @@ const VAGUE_MARKERS = [
   '更好用', '更好', '改一下', '改改',
 ];
 
-/** Words that ask for a change to something that already exists. */
-const MODIFY_INTENT = /(改|优化|重构|完善|补充|修复|升级|调整|继续|基于|迭代|更新|删掉|去掉|加上|新增)/;
+/**
+ * Words that ask for a change to something that already exists.
+ * Bare "改" matches the noun 改动 ("三个改动"), so that one character is
+ * declined when 动 follows it. 修改 and 改一下 still count.
+ */
+const MODIFY_INTENT = /优化|重构|完善|补充|修复|升级|调整|继续|基于|迭代|更新|删掉|去掉|加上|新增|改进|修改|改一下|改改|改(?!动)|\bfix(?:es|ed|ing)?\b|\brefactor\b|\bupdate\b|\bchange\b/i;
 
 /** Words that ask for something new, which no existing target can satisfy. */
-const CREATE_INTENT = /(新建|从零|重写|重新做|另起|做一个|写一个|生成|搭一个|来一个)/;
+const CREATE_INTENT = /新建|从零|重写|重新做|另起|做一个|写一个|做个|生成|搭一个|来一个|\bcreate\b|\bbuild\b|\bwrite\b/i;
+
+/** A complaint about something that already exists, with no new artifact named. */
+const COMPLAINT = /不好|太丑|不行|没反应|挂了|出问题/;
+
+/** Prose tasks. Their defaults are a text, not a new code directory. */
+const PROSE = /邮件|周报|文章|文案|简历|翻译|\btranslate\b|\bemail\b/i;
+
+/**
+ * A question or an explanation request. Running the six-dimension brief on
+ * these turns "为什么测试挂了" into "默认改 src".
+ */
+function isQuestion(text) {
+  const trimmed = text.trim();
+  if (trimmed === '') return false;
+  if (/是什么意思|什么意思|干嘛的|干吗的|是干嘛|是干吗|只是想问|只是问/.test(trimmed)) return true;
+  if (/[?？]\s*$/.test(trimmed) && !/做|写|改|修|加|实现|生成|新建/.test(trimmed)) return true;
+  if (/^(?:请问|为什么|为何|怎么|如何|什么是|啥意思|解释一下|看一下|帮我看看这)/.test(trimmed)) {
+    return !/做|写一|改一|修一|实现|生成|新建/.test(trimmed);
+  }
+  return false;
+}
 
 /**
  * Existing workspace entries the wish names outright. A user who writes
@@ -350,9 +395,13 @@ function resolveTargets(text, scan) {
   return hits.sort((left, right) => right.length - left.length);
 }
 
-/** Whether the wish asks to change something existing, or to make something new. */
+/**
+ * Whether the wish asks to change something existing, to make something new,
+ * or is just a question.
+ */
 export function detectIntent(wishText, scan) {
   const text = typeof wishText === 'string' ? wishText : '';
+  if (isQuestion(text)) return 'ask';
   const targets = resolveTargets(text, scan);
   const creates = CREATE_INTENT.test(text);
   const modifies = MODIFY_INTENT.test(text);
@@ -360,6 +409,7 @@ export function detectIntent(wishText, scan) {
   if (modifies && !creates) return 'modify';
   if (targets.length > 0 && modifies) return 'modify';
   if (creates) return 'create';
+  if (COMPLAINT.test(text)) return 'modify';
   return 'unclear';
 }
 
@@ -370,9 +420,25 @@ export function detectIntent(wishText, scan) {
  */
 export function auditWish(wish, scan = null, table = BUILT_IN) {
   const text = typeof wish === 'string' ? wish : '';
+  const intent = detectIntent(text, scan);
+  const targets = resolveTargets(text, scan);
+  if (intent === 'ask') {
+    return {
+      settled: [],
+      gaps: [],
+      notes: {},
+      vague: [],
+      targets,
+      intent,
+      score: 0,
+      total: table.length,
+      clear: false,
+    };
+  }
   const settled = [];
   const gaps = [];
   const notes = {};
+  const prose = PROSE.test(text);
   for (const dimension of table) {
     const worded = dimension.test.test(text);
     const evidence = dimensionEvidence(dimension, text, scan);
@@ -389,26 +455,45 @@ export function auditWish(wish, scan = null, table = BUILT_IN) {
     };
     // A change request with no recognisable target is the most expensive gap:
     // say so instead of offering the create-something-new default.
-    if (dimension.id === 'destination' && detectIntent(text, scan) === 'modify') {
+    if (dimension.id === 'destination' && intent === 'modify') {
       const menu = (scan?.topLevel ?? []).slice(0, 6);
       gap.question = menu.length > 0
         ? `要改的是哪一个？工作区里能对上号的有：${menu.join('、')}`
         : '要改的是哪一个？工作区里没有能对上号的名字。';
-      gap.suggestion = menu.length > 0 ? `默认改 ${menu[0]}。` : '先确认目标，再动手。';
+      // Do not pick menu[0]. An unnamed "效果不好" would otherwise become "edit src".
+      gap.suggestion = '先确认目标，再动手。';
+    } else if (prose && dimension.id === 'destination') {
+      gap.question = '直接发在对话里，还是写成文件？';
+      gap.suggestion = '默认直接给出正文，不新建代码目录。';
+    }
+    if (prose && dimension.id === 'acceptance') {
+      gap.suggestion = '默认读一遍能直接使用，不用跑代码。';
+    }
+    if (prose && dimension.id === 'constraints') {
+      gap.suggestion = '默认沿用原文的长度和术语，不加代码层面的限制。';
+    }
+    if (prose && dimension.id === 'scope') {
+      gap.suggestion = '默认就这一份，不扩展成系列。';
     }
     gaps.push(gap);
   }
   const vague = VAGUE_MARKERS.filter((marker) => text.includes(marker));
+  // Audience and scope can take a default without changing the outcome.
+  // A missing deliverable, landing place, constraint, or acceptance cannot:
+  // those are where a wrong default overwrites what the user already said,
+  // or invents a project the user did not ask for.
+  const hasArtifact = table.some((dimension) => dimension.id === 'artifact');
+  const blocking = gaps.some((gap) => gap.id !== 'audience' && gap.id !== 'scope');
   return {
     settled,
     gaps,
     notes,
     vague,
-    targets: resolveTargets(text, scan),
-    intent: detectIntent(text, scan),
+    targets,
+    intent,
     score: settled.length,
     total: table.length,
-    clear: gaps.length === 0 && vague.length === 0,
+    clear: vague.length === 0 && !blocking && (!hasArtifact || settled.includes('artifact')),
   };
 }
 
@@ -431,7 +516,11 @@ function dimensionEvidence(dimension, text, scan) {
 
 /** Build the filled brief: the wish, then one line per dimension with defaults. */
 export function buildBrief(wish, audit, scan, table = BUILT_IN) {
-  const lines = [`目标：${wish.trim() || '（未填写）'}`];
+  const said = typeof wish === 'string' ? wish.trim() : '';
+  if (audit.intent === 'ask') {
+    return `这是提问，不是施工请求。按原话回答，不要补交付物、落点和验收，也不要改工作区。\n原话：${said || '（未填写）'}`;
+  }
+  const lines = [`目标：${said || '（未填写）'}`];
   const gapsById = new Map(audit.gaps.map((gap) => [gap.id, gap]));
   for (const dimension of table) {
     if (audit.settled.includes(dimension.id)) {
@@ -471,6 +560,13 @@ function scanFacts(scan) {
 
 /** Compact, model-facing text for one refine result. */
 function renderRefineText(result) {
+  if (result.intent === 'ask') {
+    return [
+      '许愿体检：这是提问，不是施工请求。',
+      result.brief,
+      '下一步：直接回答，不要改工作区，也不要追问交付物。',
+    ].join('\n\n');
+  }
   const intentLabel = result.intent === 'modify' ? '改现有' : result.intent === 'create' ? '做新的' : '暂未看出';
   const lines = [
     `许愿体检：${result.score}/${result.total} 个维度已说明${result.clear ? '（已足够清晰）' : ''}`,
@@ -484,7 +580,9 @@ function renderRefineText(result) {
     lines.push('', `模糊表述：${result.vague.join('、')} —— 这些词没有可执行的含义，需要换成具体名词或数字。`);
   }
   lines.push('', '可直接使用的工作说明：', result.brief);
-  lines.push('', '下一步：只问上面最影响结果的一两项；其余按建议默认执行，并在回答里说明默认了什么。');
+  lines.push('', result.clear
+    ? '下一步：目标已经够清楚，按工作说明直接做，不要再追问。标成「文中已说明」的部分保持用户原话。'
+    : '下一步：只问上面最影响结果的一两项；其余按建议默认执行。标成「文中已说明」的部分不要改成默认值。');
   return lines.join('\n');
 }
 
@@ -799,7 +897,7 @@ export async function apply(ctx, config) {
   ctx.tools.register({
     name: 'lamp_refine',
     description:
-      'Turn a wish into a buildable brief. Reads the workspace, checks the wish against six dimensions (deliverable, destination, audience, constraints, acceptance, scope), and returns the gaps, one recommended default per gap, and a filled brief. Use it before building on an under-specified request, then ask only the gaps that change the outcome.',
+      'Turn a wish into a buildable brief. Reads the workspace, checks the wish against six dimensions (deliverable, destination, audience, constraints, acceptance, scope), and returns the gaps, one recommended default per gap, and a filled brief. Use it before building on an under-specified request. If intent is "ask", answer the question and do not build. Keep every line marked 文中已说明 as the user said it; apply a default only to a 待定 line.',
     parameters: {
       type: 'object',
       required: ['wish'],
@@ -899,8 +997,8 @@ export async function apply(ctx, config) {
       if (!litFromContext(context)) return '';
       return [
         '## 神灯 / wish check',
-        'A wish is a target; without one there is nothing to aim at. When a request is under-specified (no clear deliverable, destination, or acceptance), call `lamp_refine` with the request close to verbatim before you build. It returns the missing dimensions, a default for each, and a filled brief that already knows the workspace.',
-        'Ask the user only the one or two gaps that change the outcome, and state the defaults you applied for the rest instead of asking about them. Skip the lamp when the request is already specific.',
+        'A wish is a target; without one there is nothing to aim at. When a request is under-specified (no clear deliverable, destination, or acceptance), call `lamp_refine` with the request close to verbatim before you build. Skip the lamp for questions, explanations, and requests that are already specific.',
+        'If the result says intent is ask, answer the question and do not build. If it says the wish is clear, build from the brief. Otherwise ask only the one or two gaps that change the outcome. Anything marked 文中已说明 stays as the user said it; apply a default only to a 待定 line, and say which default you used.',
       ].join('\n\n');
     },
   });

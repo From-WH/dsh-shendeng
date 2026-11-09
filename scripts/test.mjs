@@ -18,8 +18,8 @@ const units = readdirSync(testDir)
   .map((file) => join(testDir, file));
 
 let failed = false;
-const run = (bin, args) => {
-  const result = spawnSync(bin, args, { stdio: 'inherit' });
+const run = (bin, args, env) => {
+  const result = spawnSync(bin, args, { stdio: 'inherit', env: env ?? process.env });
   if (result.status !== 0) failed = true;
 };
 
@@ -28,7 +28,9 @@ run(process.execPath, ['--test', ...units]);
 const electron = '/Applications/DeepSeek Harness.app/Contents/MacOS/DeepSeek Harness';
 const integration = join(testDir, 'cordis.integration.mjs');
 if (existsSync(electron) && existsSync(integration)) {
-  run(electron, ['--test', integration]);
+  // The app binary is Electron. Without this it opens the GUI instead of
+  // running the Node test runner, and a clean exit hides a skipped suite.
+  run(electron, ['--test', integration], { ...process.env, ELECTRON_RUN_AS_NODE: '1' });
 } else {
   console.log('# cordis integration skipped: DeepSeek Harness app or test missing');
 }

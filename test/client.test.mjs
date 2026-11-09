@@ -155,6 +155,7 @@ test('the lamp command rows render in every state', () => {
   const refineCases = [
     { shenDeng: { kind: 'refine', score: 1, total: 6, clear: false, intent: 'modify', targets: ['alpha'], gaps: [{ id: 'a', label: 'L', question: 'Q', suggestion: 'S' }], vague: ['随意'], brief: 'B', facts: ['F'] } },
     { shenDeng: { kind: 'refine', score: 6, total: 6, clear: true, intent: 'create', targets: [], gaps: [], vague: [], brief: 'B', facts: [] } },
+    { shenDeng: { kind: 'refine', score: 0, total: 6, clear: false, intent: 'ask', targets: [], gaps: [], vague: [], brief: '问', facts: [] } },
   ];
   for (const meta of refineCases) {
     const tree = expand(refine({ translate, useDisclosure: () => ({ expanded: true, toggle() {} }), block: block('lamp_refine', meta) }));

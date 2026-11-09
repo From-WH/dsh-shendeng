@@ -31,6 +31,8 @@ window.__ModuleLoader__.load({
         clearTitle: '目标已经足够清晰',
         intentModify: '改现有',
         intentCreate: '做新的',
+        intentAsk: '提问',
+        askTitle: '这是提问，直接回答',
         gapCount: '{n} 个维度待定',
         scoreText: '{n}/{total} 维度已说明',
         files: '文件',
@@ -91,6 +93,8 @@ window.__ModuleLoader__.load({
         clearTitle: 'The target is clear enough',
         intentModify: 'Change existing',
         intentCreate: 'Build new',
+        intentAsk: 'Question',
+        askTitle: 'This is a question — answer it',
         gapCount: '{n} dimension(s) open',
         scoreText: '{n}/{total} settled',
         files: 'files',
@@ -219,13 +223,22 @@ window.__ModuleLoader__.load({
      *
      * Every coordinate stays inside the 0 0 16 16 viewBox.
      */
+    /** Every glyph gets its own gradient ids: duplicate ids are invalid HTML,
+        and when an instance unmounts, its defs go with it — any other instance
+        still pointing at those ids would then paint nothing at all. */
+    let LAMP_UID = 0;
+
     function AladdinLamp(props) {
       const size = props.size || 16;
       const lit = props.lit === true;
-      const id = props.uid || 'sd';
-      const metal = lit ? 'url(#sd-metal-lit-' + id + ')' : 'url(#sd-metal-off-' + id + ')';
+      const id = props.uid || 'lamp' + (++LAMP_UID);
+      // `url(#x) color` is SVG's paint fallback: if the gradient cannot be
+      // resolved, the solid colour takes over and the lamp stays visible.
+      const metal = lit
+        ? 'url(#sd-metal-lit-' + id + ') #a06cd0'
+        : 'url(#sd-metal-off-' + id + ') #6a628e';
       const filigree = lit ? 'rgba(255, 226, 255, 0.9)' : 'rgba(170, 186, 226, 0.5)';
-      const flame = lit ? 'url(#sd-flame-' + id + ')' : 'transparent';
+      const flame = lit ? 'url(#sd-flame-' + id + ') #b98cff' : 'transparent';
 
       return h('svg', {
         viewBox: '0 0 16 16', width: size, height: size,
@@ -405,7 +418,9 @@ window.__ModuleLoader__.load({
         ? t('intentModify')
         : data.intent === 'create'
           ? t('intentCreate')
-          : null;
+          : data.intent === 'ask'
+            ? t('intentAsk')
+            : null;
 
       return h(Card, null,
         intentLabel !== null || targets.length > 0
@@ -443,11 +458,15 @@ window.__ModuleLoader__.load({
             )
           : null,
 
-        gaps.length === 0 && vague.length === 0
+        data.intent === 'ask'
           ? h('div', {
-              style: { color: 'var(--dsw-alias-state-success-primary)', fontSize: 13 },
-            }, t('clearTitle'))
-          : null,
+              style: { color: 'var(--dsw-alias-label-secondary)', fontSize: 13 },
+            }, t('askTitle'))
+          : gaps.length === 0 && vague.length === 0
+            ? h('div', {
+                style: { color: 'var(--dsw-alias-state-success-primary)', fontSize: 13 },
+              }, t('clearTitle'))
+            : null,
 
         gaps.length > 0
           ? h(Section, { title: t('gapHeading') },
@@ -545,11 +564,13 @@ window.__ModuleLoader__.load({
       const score = typeof data.score === 'number' ? data.score : 0;
       const total = typeof data.total === 'number' ? data.total : 6;
       const gapCount = Array.isArray(data.gaps) ? data.gaps.length : 0;
-      const summary = props.settled
-        ? fill(t('scoreText'), { n: score, total: total })
-        : gapCount > 0
-          ? fill(t('gapCount'), { n: gapCount })
-          : t('running');
+      const summary = data.intent === 'ask'
+        ? t('askTitle')
+        : props.settled
+          ? fill(t('scoreText'), { n: score, total: total })
+          : gapCount > 0
+            ? fill(t('gapCount'), { n: gapCount })
+            : t('running');
 
       return h('div', { style: { display: 'flex', flexDirection: 'column' } },
         h('div', { style: ROW_STYLE },
@@ -1132,12 +1153,12 @@ window.__ModuleLoader__.load({
      */
     /** The lamp's built-in six, so "restore defaults" can refill the form. */
     const BUILT_IN_TEMPLATE = [
-      { id: 'artifact', label: '交付物', match: ['网站','插件','脚本','程序','文档','报告','文章','图片','表格','文件','.js','.md','.py','.html'], ask: '最终要拿到什么？一个文件、一个能跑的程序，还是一段文字？', suggest: '先定一个可打开、可运行的产物，而不是“一套方案”。' },
-      { id: 'destination', label: '落点', match: ['放到','保存到','目录','路径','现有','已有','改进','接进'], ask: '它应该落在哪里？新建文件、改进现有文件，还是只给结论？', suggest: '默认在当前工作区新建一个独立目录，不覆盖已有文件。' },
-      { id: 'audience', label: '受众与语气', match: ['给','面向','用户','读者','老板','客户','团队','专业','口语','幽默','正式','简洁'], ask: '这是给谁看的？决定用词深度、长度和语气。', suggest: '默认按“聪明但不懂这个领域的人”来写，少术语、多例子。' },
-      { id: 'constraints', label: '硬约束', match: ['必须','不要','只能','限制','字数','长度','版本','技术栈','不能','兼容','无依赖','离线'], ask: '有什么不能动的前提？技术栈、字数、必须复用的东西。', suggest: '默认不加新依赖，复用工作区已有的工具链。' },
-      { id: 'acceptance', label: '验收标准', match: ['成功','验收','测试','能跑','可用','通过','准确','标准','检查','不报错'], ask: '怎样算做完了？一条能当场验证的判据最有用。', suggest: '默认以“打开就能看到结果 / 跑通一次真实输入”为验收。' },
-      { id: 'scope', label: '范围', match: ['全部','整个','只','仅','第一版','mvp','先做','简化','完整'], ask: '这一版做到哪算够？全量还是先要一个最小可用版本。', suggest: '默认先交一个能端到端跑通的最小版本，再逐步加。' },
+      { id: 'artifact', label: '交付物', match: ['网站','网页','页面','插件','脚本','程序','文档','报告','文章','文案','邮件','周报','翻译','图片','表格','函数','接口','.js','.md','.py','.html'], ask: '最终要拿到什么？一个文件、一个能跑的程序，还是一段文字？', suggest: '先定一个可打开、可运行的产物，而不是“一套方案”。' },
+      { id: 'destination', label: '落点', match: ['放到','保存到','目录','路径','现有','已有','改进','接进','发出去','发到'], ask: '它应该落在哪里？新建文件、改进现有文件，还是只给结论？', suggest: '默认在当前工作区新建一个独立目录，不覆盖已有文件。' },
+      { id: 'audience', label: '受众与语气', match: ['面向','写给','读者','老板','客户','同事','团队','正式','简洁','口语'], ask: '这是给谁看的？决定用词深度、长度和语气。', suggest: '默认按“聪明但不懂这个领域的人”来写，少术语、多例子。' },
+      { id: 'constraints', label: '硬约束', match: ['必须','不要','只能','不能','字数','字以内','无依赖','离线','不加','/\\d+\\s*字/'], ask: '有什么不能动的前提？技术栈、字数、必须复用的东西。', suggest: '默认不加新依赖，复用工作区已有的工具链。' },
+      { id: 'acceptance', label: '验收标准', match: ['验收','能跑','跑通','通过','即可','就算完成','就能用','测试通过','npm test','must pass'], ask: '怎样算做完了？一条能当场验证的判据最有用。', suggest: '默认以“打开就能看到结果 / 跑通一次真实输入”为验收。' },
+      { id: 'scope', label: '范围', match: ['第一版','mvp','先做','只做','只改','只写','最小','全部','整个','only that','first version'], ask: '这一版做到哪算够？全量还是先要一个最小可用版本。', suggest: '默认先交一个能端到端跑通的最小版本，再逐步加。' },
     ];
 
     const DIMENSION_TEMPLATES = [
@@ -1145,15 +1166,15 @@ window.__ModuleLoader__.load({
       { key: 'tplWriting', dims: [
         { id: 'genre',    label: '文体',   match: ['文章','文案','公众号','小红书','知乎','报告','邮件','周报','简历'], ask: '这是什么文体？不同文体的结构和语气完全不同。', suggest: '默认按通用的说明文处理，先列结构再填内容。' },
         { id: 'audience', label: '读者',   match: ['读者','老板','客户','同事','粉丝','面试'], ask: '写给谁看？决定用词深度和称呼。', suggest: '默认写给“聪明但不懂这个领域的人”。' },
-        { id: 'length',   label: '篇幅',   match: ['字','简短','详细','长文','短文'], ask: '大概多少字？', suggest: '默认 800 字以内。' },
+        { id: 'length',   label: '篇幅',   match: ['字以内','字以上','字左右','字数','简短','详细','长文','短文','/\\d+\\s*字/'], ask: '大概多少字？', suggest: '默认 800 字以内。' },
         { id: 'tone',     label: '调性',   match: ['幽默','正式','温暖','专业','口语'], ask: '要什么调性？', suggest: '默认克制、少形容词。' },
         { id: 'done',     label: '验收',   match: ['通过','满意','发布','能用'], ask: '怎样算合格？', suggest: '默认：结构和观点完整，可直接发布。' },
       ]},
       { key: 'tplCode', dims: [
         { id: 'stack',    label: '技术栈', match: ['react','vue','python','node','go','rust','java','脚本','插件'], ask: '用什么技术栈？优先复用工作区已有的。', suggest: '默认不加新依赖，复用现有工具链。' },
         { id: 'target',   label: '落点',   match: ['新建','重构','修复','重构'], ask: '新建还是改现有代码？改哪个文件或目录？', suggest: '默认改现有文件，不动其他部分。' },
-        { id: 'done',     label: '验收',   match: ['测试','跑通','通过','编译','不报错'], ask: '怎样算完成？一条能当场验证的判据最有用。', suggest: '默认：语法检查通过 + 跑通一次真实输入。' },
-        { id: 'range',    label: '范围',   match: ['只','先做','第一版','全部','mvp'], ask: '这一版做多大？', suggest: '默认最小可用版本，端到端跑通后再加。' },
+        { id: 'done',     label: '验收',   match: ['测试通过','跑测试','跑通','通过','编译','不报错','npm test'], ask: '怎样算完成？一条能当场验证的判据最有用。', suggest: '默认：语法检查通过 + 跑通一次真实输入。' },
+        { id: 'range',    label: '范围',   match: ['只做','只改','只写','先做','第一版','全部','mvp','最小'], ask: '这一版做多大？', suggest: '默认最小可用版本，端到端跑通后再加。' },
       ]},
       { key: 'tplTranslate', dims: [
         { id: 'lang',     label: '语言',   match: ['英文','中文','日语','翻译','localize'], ask: '翻译成什么语言？', suggest: '默认中文。' },
@@ -1164,7 +1185,7 @@ window.__ModuleLoader__.load({
       { key: 'tplReport', dims: [
         { id: 'audience', label: '汇报对象', match: ['老板','客户','团队','汇报','上级'], ask: '汇报给谁？决定详略和措辞。', suggest: '默认写给“关心结论胜过过程的人”。' },
         { id: 'shape',    label: '结构',   match: ['结论先行','列表','表格','摘要'], ask: '要什么结构？', suggest: '默认结论先行，三条要点支撑。' },
-        { id: 'length',   label: '篇幅',   match: ['一页','字','简短','详细'], ask: '多长合适？', suggest: '默认一屏以内。' },
+        { id: 'length',   label: '篇幅',   match: ['一页','字以内','字数','简短','详细','/\\d+\\s*字/'], ask: '多长合适？', suggest: '默认一屏以内。' },
         { id: 'done',     label: '验收',   match: ['发出','通过','满意'], ask: '怎样算合格？', suggest: '默认：结论明确，数字有出处。' },
       ]},
     ];
@@ -1291,6 +1312,7 @@ window.__ModuleLoader__.load({
             match: r.match.split(',').map(function (x) { return x.trim(); }).filter(Boolean),
             ask: r.ask.trim(),
             suggest: r.suggest.trim(),
+            ...(r.id.trim() === 'destination' ? { resolve: 'targets' } : {}),
           };
         });
         const ids = new Set();

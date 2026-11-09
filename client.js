@@ -1060,15 +1060,6 @@ window.__ModuleLoader__.load({
         );
       };
 
-      const badge = busy ? t('switchWorking') : lit ? t('switchOn') : t('switchOff');
-      const subtitle = failure !== null
-        ? failure
-        : busy
-          ? t('switchWorking')
-          : lit
-            ? t('dockSubOn')
-            : t('dockSubOff');
-
       const stateLabel = lit ? t('switchOn') : t('switchOff');
       const meta = failure !== null
         ? failure

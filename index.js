@@ -334,7 +334,8 @@ const CREATE_INTENT = /(新建|从零|重写|重新做|另起|做一个|写一�
  */
 function resolveTargets(text, scan) {
   if (scan === null || scan === undefined) return [];
-  const haystack = text.toLowerCase();
+  // Exported helpers are called with whatever a caller has; never assume a string.
+  const haystack = typeof text === 'string' ? text.toLowerCase() : '';
   const candidates = new Set();
   for (const name of scan.topLevel ?? []) candidates.add(name);
   for (const manifest of scan.manifests ?? []) {
@@ -350,7 +351,8 @@ function resolveTargets(text, scan) {
 }
 
 /** Whether the wish asks to change something existing, or to make something new. */
-export function detectIntent(text, scan) {
+export function detectIntent(wishText, scan) {
+  const text = typeof wishText === 'string' ? wishText : '';
   const targets = resolveTargets(text, scan);
   const creates = CREATE_INTENT.test(text);
   const modifies = MODIFY_INTENT.test(text);
@@ -544,6 +546,9 @@ const lampProjection = {
   apply: (state, event) => {
     if (event.type === 'command/run' && event.data.name === SWITCH_COMMAND) {
       const wanted = parseLampArgs(event.data.args ?? '');
+      // An unrecognised spelling is rejected by the handler; record no intent
+      // so a later successful command is the only thing that moves the switch.
+      if (wanted === null) return state;
       return { ...state, running: { commandId: event.data.commandId, wanted } };
     }
     if (event.type === 'command/done' && event.data.commandId === state.running?.commandId) {
@@ -561,12 +566,19 @@ const lampProjection = {
   },
 };
 
-/** Parse `/lamp` input into a selection; anything else is an objective-style toggle-on. */
+/**
+ * Parse `/lamp` input.
+ *
+ * `on`/`off` (and bare `/lamp`, which means on) are the accepted spellings.
+ * Anything else is refused rather than silently treated as "on": a typo should
+ * not quietly change the lamp's behaviour.
+ * @returns `true` to light, `false` to put out, or `null` for unrecognised input.
+ */
 function parseLampArgs(rawInput) {
-  const input = rawInput.trim().toLowerCase();
-  if (input === 'off') return false;
+  const input = typeof rawInput === 'string' ? rawInput.trim().toLowerCase() : '';
   if (input === '' || input === 'on') return true;
-  return true;
+  if (input === 'off') return false;
+  return null;
 }
 
 /* ------------------------------------------------------------------ *
@@ -648,6 +660,9 @@ export async function apply(ctx, config) {
     input: { hint: 'on|off' },
     handler: ({ agent, rawInput }) => {
       const wanted = parseLampArgs(rawInput);
+      if (wanted === null) {
+        return { kind: 'error', text: '用法：/lamp on 或 /lamp off' };
+      }
       // The projection commits this command's outcome on `command/done`, which
       // the framework appends right after this handler returns. Reporting the
       // resulting state here keeps the text and the switch in agreement.

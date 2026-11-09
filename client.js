@@ -52,23 +52,30 @@ window.__ModuleLoader__.load({
         statsPending: '尚未体检',
         statsChecks: '已体检 {n} 次',
         statsGaps: '拦截 {n} 处歧义',
-        cfgIntro: '体检维度表：改完即生效，无需重启。',
+        cfgIntro: '神灯会按下面的表格检查你的需求；表格行就是检查项。',
+        cfgTplLabel: '一键套用场景',
+        cfgTplApplied: '已套用模板，可继续微调，别忘了保存',
         cfgReadonly: '当前环境只读，无法保存。',
-        cfgAdd: '加一维',
+        cfgAdd: '自己加一条',
+        tplReport: '汇报',
+        tplTranslate: '翻译',
+        tplCode: '写代码',
+        tplWriting: '写作 / 文案',
+        tplDefault: '内置六维（恢复默认）',
         cfgRemove: '删除',
         cfgSave: '保存',
         cfgRevert: '放弃修改',
         cfgSaved: '已保存',
         cfgErrSave: '保存失败',
-        cfgErrId: '每一维都需要非空 id',
-        cfgErrMatch: '每一维都需要至少一个匹配词',
-        cfgErrDup: 'id 重复',
-        cfgFieldId: 'id',
-        cfgFieldLabel: '显示名',
-        cfgFieldMatch: '匹配词',
-        cfgMatchHint: '逗号分隔；/…/ 形式按正则处理',
-        cfgFieldAsk: '问题',
-        cfgFieldSuggest: '默认建议',
+        cfgErrId: '每条检查都需要一个名称',
+        cfgErrMatch: '每条检查至少要有一个要留意的词',
+        cfgErrDup: '有两条检查重名了',
+        cfgFieldId: '标识',
+        cfgFieldLabel: '检查项名称',
+        cfgFieldMatch: '提到这些词就算说明了',
+        cfgMatchHint: '逗号分隔。写用户需求里可能出现的词，比如“轻松, 语气, 正式”',
+        cfgFieldAsk: '要问的问题',
+        cfgFieldSuggest: '不用问时的默认做法',
         manifestHeading: '项目清单',
       },
       en: {
@@ -105,23 +112,30 @@ window.__ModuleLoader__.load({
         statsPending: 'no checks yet',
         statsChecks: '{n} wish checks',
         statsGaps: '{n} gaps caught',
-        cfgIntro: 'Dimension table for the wish check. Edits apply immediately.',
+        cfgIntro: 'The lamp checks your wish against the rows below.',
+        cfgTplLabel: 'Quick start',
+        cfgTplApplied: 'Template applied — tweak if you like, then save',
         cfgReadonly: 'Read-only environment; saving is disabled.',
-        cfgAdd: 'Add',
+        cfgAdd: 'Add one',
+        tplReport: 'Reporting',
+        tplTranslate: 'Translation',
+        tplCode: 'Coding',
+        tplWriting: 'Writing',
+        tplDefault: 'Built-in six (reset)',
         cfgRemove: 'Remove',
         cfgSave: 'Save',
         cfgRevert: 'Revert',
         cfgSaved: 'Saved',
         cfgErrSave: 'Save failed',
-        cfgErrId: 'Every dimension needs a non-empty id',
-        cfgErrMatch: 'Every dimension needs at least one match phrase',
-        cfgErrDup: 'Duplicate id',
-        cfgFieldId: 'id',
-        cfgFieldLabel: 'Label',
-        cfgFieldMatch: 'Match',
-        cfgMatchHint: 'Comma-separated; /…/ form is treated as a regex',
-        cfgFieldAsk: 'Question',
-        cfgFieldSuggest: 'Default suggestion',
+        cfgErrId: 'Every check needs a name',
+        cfgErrMatch: 'Every check needs at least one word to look for',
+        cfgErrDup: 'Two checks share the same name',
+        cfgFieldId: 'Name',
+        cfgFieldLabel: 'Shown as',
+        cfgFieldMatch: 'Counts as addressed when the wish mentions…',
+        cfgMatchHint: 'Comma-separated words that may appear in the request, e.g. "light, formal"',
+        cfgFieldAsk: 'Question to ask',
+        cfgFieldSuggest: 'Default when not asked',
         manifestHeading: 'Manifests',
       },
     };
@@ -1119,6 +1133,52 @@ window.__ModuleLoader__.load({
     }
 
     /**
+     * Ready-made dimension tables, one per common scenario.
+     *
+     * Most people cannot write a dimension; they can recognise their scenario.
+     * Picking a template fills the whole table, which they may then tweak or
+     * save as-is. "Built-in six" restores the lamp's defaults.
+     */
+    /** The lamp's built-in six, so "restore defaults" can refill the form. */
+    const BUILT_IN_TEMPLATE = [
+      { id: 'artifact', label: '交付物', match: ['网站','插件','脚本','程序','文档','报告','文章','图片','表格','文件','.js','.md','.py','.html'], ask: '最终要拿到什么？一个文件、一个能跑的程序，还是一段文字？', suggest: '先定一个可打开、可运行的产物，而不是“一套方案”。' },
+      { id: 'destination', label: '落点', match: ['放到','保存到','目录','路径','现有','已有','改进','接进'], ask: '它应该落在哪里？新建文件、改进现有文件，还是只给结论？', suggest: '默认在当前工作区新建一个独立目录，不覆盖已有文件。' },
+      { id: 'audience', label: '受众与语气', match: ['给','面向','用户','读者','老板','客户','团队','专业','口语','幽默','正式','简洁'], ask: '这是给谁看的？决定用词深度、长度和语气。', suggest: '默认按“聪明但不懂这个领域的人”来写，少术语、多例子。' },
+      { id: 'constraints', label: '硬约束', match: ['必须','不要','只能','限制','字数','长度','版本','技术栈','不能','兼容','无依赖','离线'], ask: '有什么不能动的前提？技术栈、字数、必须复用的东西。', suggest: '默认不加新依赖，复用工作区已有的工具链。' },
+      { id: 'acceptance', label: '验收标准', match: ['成功','验收','测试','能跑','可用','通过','准确','标准','检查','不报错'], ask: '怎样算做完了？一条能当场验证的判据最有用。', suggest: '默认以“打开就能看到结果 / 跑通一次真实输入”为验收。' },
+      { id: 'scope', label: '范围', match: ['全部','整个','只','仅','第一版','mvp','先做','简化','完整'], ask: '这一版做到哪算够？全量还是先要一个最小可用版本。', suggest: '默认先交一个能端到端跑通的最小版本，再逐步加。' },
+    ];
+
+    const DIMENSION_TEMPLATES = [
+      { key: 'tplDefault', dims: null },
+      { key: 'tplWriting', dims: [
+        { id: 'genre',    label: '文体',   match: ['文章','文案','公众号','小红书','知乎','报告','邮件','周报','简历'], ask: '这是什么文体？不同文体的结构和语气完全不同。', suggest: '默认按通用的说明文处理，先列结构再填内容。' },
+        { id: 'audience', label: '读者',   match: ['读者','老板','客户','同事','粉丝','面试'], ask: '写给谁看？决定用词深度和称呼。', suggest: '默认写给“聪明但不懂这个领域的人”。' },
+        { id: 'length',   label: '篇幅',   match: ['字','简短','详细','长文','短文'], ask: '大概多少字？', suggest: '默认 800 字以内。' },
+        { id: 'tone',     label: '调性',   match: ['幽默','正式','温暖','专业','口语'], ask: '要什么调性？', suggest: '默认克制、少形容词。' },
+        { id: 'done',     label: '验收',   match: ['通过','满意','发布','能用'], ask: '怎样算合格？', suggest: '默认：结构和观点完整，可直接发布。' },
+      ]},
+      { key: 'tplCode', dims: [
+        { id: 'stack',    label: '技术栈', match: ['react','vue','python','node','go','rust','java','脚本','插件'], ask: '用什么技术栈？优先复用工作区已有的。', suggest: '默认不加新依赖，复用现有工具链。' },
+        { id: 'target',   label: '落点',   match: ['新建','重构','修复','重构'], ask: '新建还是改现有代码？改哪个文件或目录？', suggest: '默认改现有文件，不动其他部分。' },
+        { id: 'done',     label: '验收',   match: ['测试','跑通','通过','编译','不报错'], ask: '怎样算完成？一条能当场验证的判据最有用。', suggest: '默认：语法检查通过 + 跑通一次真实输入。' },
+        { id: 'range',    label: '范围',   match: ['只','先做','第一版','全部','mvp'], ask: '这一版做多大？', suggest: '默认最小可用版本，端到端跑通后再加。' },
+      ]},
+      { key: 'tplTranslate', dims: [
+        { id: 'lang',     label: '语言',   match: ['英文','中文','日语','翻译','localize'], ask: '翻译成什么语言？', suggest: '默认中文。' },
+        { id: 'tone',     label: '语气',   match: ['口语','书面','正式','邮件','论文'], ask: '原文是什么语气？译文保持一致。', suggest: '默认保持原文语气。' },
+        { id: 'term',     label: '术语',   match: ['术语','专有名词','保留'], ask: '有要保留原文的术语吗？', suggest: '默认专有名词保留原文并附中文。' },
+        { id: 'done',     label: '验收',   match: ['对照','准确','通顺'], ask: '怎样算合格？', suggest: '默认：语义准确、译文通顺、术语一致。' },
+      ]},
+      { key: 'tplReport', dims: [
+        { id: 'audience', label: '汇报对象', match: ['老板','客户','团队','汇报','上级'], ask: '汇报给谁？决定详略和措辞。', suggest: '默认写给“关心结论胜过过程的人”。' },
+        { id: 'shape',    label: '结构',   match: ['结论先行','列表','表格','摘要'], ask: '要什么结构？', suggest: '默认结论先行，三条要点支撑。' },
+        { id: 'length',   label: '篇幅',   match: ['一页','字','简短','详细'], ask: '多长合适？', suggest: '默认一屏以内。' },
+        { id: 'done',     label: '验收',   match: ['发出','通过','满意'], ask: '怎样算合格？', suggest: '默认：结论明确，数字有出处。' },
+      ]},
+    ];
+
+    /**
      * Settings page for the dimension table.
      *
      * Reads the volatile `dimensions` field through the shared config-form
@@ -1164,6 +1224,21 @@ window.__ModuleLoader__.load({
       const add = function () {
         setDirty(true);
         setRows(function (list) { return [...list, { id: '', label: '', match: '', ask: '', suggest: '' }]; });
+      };
+      /** Fill the table from a scenario template; null means "restore built-ins". */
+      const applyTemplate = function (tpl) {
+        setDirty(true);
+        setStatus(t('cfgTplApplied'));
+        const source = tpl.dims === null ? BUILT_IN_TEMPLATE : tpl.dims;
+        setRows(source.map(function (d) {
+          return {
+            id: d.id,
+            label: d.label,
+            match: d.match.join(', '),
+            ask: d.ask,
+            suggest: d.suggest,
+          };
+        }));
       };
       const remove = function (index) {
         setDirty(true);
@@ -1224,6 +1299,27 @@ window.__ModuleLoader__.load({
             style: { border: '0.5px solid var(--dsw-alias-border-l2)', background: 'none', color: 'var(--dsw-alias-label-secondary)', borderRadius: 6, padding: '2px 8px', cursor: 'pointer', font: 'inherit' },
           }, t('cfgAdd')),
         ),
+        h('div', { style: { display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' } },
+          h('span', { style: { color: 'var(--dsw-alias-label-secondary)' } }, t('cfgTplLabel')),
+          DIMENSION_TEMPLATES.map(function (tpl) {
+            return h('button', {
+              key: tpl.key,
+              type: 'button',
+              onClick: function () { applyTemplate(tpl); },
+              style: {
+                border: '0.5px solid var(--dsw-alias-border-l2)',
+                background: 'var(--dsw-alias-bg-layer-2)',
+                color: 'var(--dsw-alias-label-primary)',
+                borderRadius: 999,
+                padding: '2px 10px',
+                cursor: 'pointer',
+                font: 'inherit',
+                fontSize: 11.5,
+              },
+            }, t(tpl.key));
+          }),
+        ),
+
         rows.map(function (row, index) {
           return h('div', {
             key: index,

@@ -77,6 +77,24 @@
 - 只读工作区顶层结构，不读代码内容；指代识别靠名字对号。
 - 体检语料以中文为主，英文需求的识别率会低一些。
 
+## 开发
+
+```bash
+npm test
+```
+
+单元测试在当前 Node 下运行；`test/cordis.integration.mjs` 用已安装的 DeepSeek Harness 的 Electron 二进制加载真实 Cordis 上下文，验证依赖守卫（`inject` 声明缺失时插件必须不激活而不是半激活）。没装 App 时该步骤自动跳过。
+
+```
+test/
+  helpers.mjs            临时工作区、真实磁盘 fs provider、Host 上下文替身
+  audit.test.mjs         六维体检、意图识别、指代解析、brief 生成
+  tools.test.mjs         两个工具与 /lamp 的边界行为、配置回退
+  projections.test.mjs   开关与用量投影的折叠逻辑
+  client.test.mjs        浏览器半边的注册、渲染、locale 覆盖
+  cordis.integration.mjs 真实 Cordis 依赖守卫
+```
+
 ## License
 
 MIT

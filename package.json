@@ -1,5 +1,5 @@
 {
-  "name": "@local/shen-deng",
+  "name": "dsh-shendeng",
   "version": "1.0.0",
   "private": true,
   "type": "module",
@@ -16,8 +16,7 @@
     "schema.js",
     "vendor/*.mjs",
     "cordis.patch.yml",
-    "locale/en.json",
-    "locale/zh.json",
+    "locale/*.json",
     "icon.svg"
   ],
   "dsh": {
@@ -38,9 +37,23 @@
     "dsh-plugin",
     "wish-check",
     "prompt",
-    "requirements"
+    "requirements",
+    "神灯"
   ],
   "engines": {
     "dsh": ">=0.2.1-rc.0"
+  },
+  "author": "From-WH",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/From-WH/dsh-shendeng.git"
+  },
+  "homepage": "https://github.com/From-WH/dsh-shendeng#readme",
+  "scripts": {
+    "test": "node scripts/test.mjs"
+  },
+  "publishConfig": {
+    "registry": "https://registry.npmjs.org/",
+    "access": "public"
   }
 }

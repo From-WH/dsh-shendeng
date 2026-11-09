@@ -1,0 +1,63 @@
+{
+  "format": 1,
+  "title": {
+    "en": "From-WH's DSH Plugins",
+    "zh": "From-WH 的 DSH 插件"
+  },
+  "description": {
+    "en": "Handcrafted plugins for the DeepSeek Harness.",
+    "zh": "为 DeepSeek Harness 打造的插件。"
+  },
+  "metadata": {
+    "categories": {
+      "productivity": {
+        "title": {
+          "en": "Productivity",
+          "zh": "效率"
+        }
+      }
+    }
+  },
+  "plugins": [
+    {
+      "name": "dsh-shendeng",
+      "title": {
+        "zh": "神灯",
+        "en": "Shen Deng"
+      },
+      "description": {
+        "zh": "读取工作区结构，把模糊的许愿按六个维度体检一遍：交付物、落点、受众、硬约束、验收标准、范围。指出还缺什么、每项建议怎么补，并给出可直接使用的工作说明。支持场景模板、图形化维度配置，以及从会话日志精确统计的体检次数与歧义数。",
+        "en": "Reads the workspace and audits a wish across six dimensions: deliverable, destination, audience, constraints, acceptance, scope. Reports what is still missing, a default for each gap, and a ready-to-use brief. Includes scenario templates, a graphical dimension editor, and exact check/gap counts folded from the session log."
+      },
+      "icon": "./icon.svg",
+      "author": "From-WH",
+      "homepage": "https://github.com/From-WH/dsh-shendeng",
+      "repository": {
+        "url": "https://github.com/From-WH/dsh-shendeng"
+      },
+      "metadata": {
+        "category": "productivity",
+        "keywords": [
+          "许愿",
+          "需求",
+          "提示词",
+          "wish-check",
+          "requirements",
+          "token"
+        ]
+      },
+      "versions": [
+        {
+          "version": "1.0.0",
+          "publishTimestamp": 1794214800,
+          "source": {
+            "type": "npm"
+          },
+          "engines": {
+            "dsh": ">=0.2.1-rc.0"
+          }
+        }
+      ]
+    }
+  ]
+}

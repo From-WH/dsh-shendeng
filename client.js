@@ -988,8 +988,24 @@ window.__ModuleLoader__.load({
       const [busy, setBusy] = React.useState(false);
       const [failure, setFailure] = React.useState(null);
       const [note, setNote] = React.useState(null);
-      const [previous, setPrevious] = React.useState(null);
       useLampStyles();
+
+      // The undo offer belongs to exactly one draft: `previous` is the text an
+      // enhance replaced, `enhanced` is what it produced. Both are dropped as
+      // soon as the composer stops holding `enhanced` — sent, cleared, or
+      // edited past it — because restoring `previous` into a different message
+      // would be wrong, and leaving the icon as "undo" over an empty composer
+      // is the bug this guards against.
+      const [enhanced, setEnhanced] = React.useState(null);
+      const [previous, setPrevious] = React.useState(null);
+      React.useEffect(function () {
+        if (enhanced === null) return;
+        if (draft !== enhanced) {
+          setEnhanced(null);
+          setPrevious(null);
+          setNote(null);
+        }
+      }, [draft, enhanced]);
 
       const hasDraft = draft.trim() !== '';
       const canRun = lit && hasDraft && !busy && !locked
@@ -1022,9 +1038,10 @@ window.__ModuleLoader__.load({
               setNote(t('rwUnchanged'));
               return;
             }
-            // Keep one step of undo: a rewrite the user dislikes must be cheap
-            // to discard, or they will stop trusting the button.
+            // Keep one step of undo: an enhance the user dislikes must be
+            // cheap to discard, or they will stop trusting the button.
             setPrevious(original);
+            setEnhanced(result.text);
             setDraft(result.text);
             setNote(result.gaps && result.gaps.length > 0
               ? fill(t('rwDoneOpen'), { gaps: result.gaps.join('、') })
@@ -1041,13 +1058,14 @@ window.__ModuleLoader__.load({
         if (previous === null) return;
         setDraft(previous);
         setPrevious(null);
+        setEnhanced(null);
         setNote(t('rwUndone'));
         setFailure(null);
       };
 
-      // One icon beside the composer, plus a result bubble above it. The icon
-      // is the action; after an enhance it becomes undo. No standing text: the
-      // result is already in the composer.
+      // One icon with its label beside it. The icon is the action; while an
+      // enhance is still undoable it becomes undo, and reverts to the lamp as
+      // soon as that draft leaves the composer.
       const showingUndo = previous !== null && !busy;
       const stateText = busy
         ? t('rwWorking')

@@ -233,6 +233,27 @@ test('the control disables itself when the composer cannot be enhanced', () => {
   assert.equal(locked.props.disabled, true, 'a sending composer means no action');
 });
 
+test('an empty or replaced composer never offers undo', () => {
+  // The reported bug: after sending, the icon stayed as "undo". The component
+  // drops its stored original as soon as the composer stops holding the text
+  // the enhance produced, so these three inputs must all render the lamp.
+  const { views } = mountClient();
+  const dock = views['conversation.input.right#shen-deng-console'];
+  for (const draft of ['', 'something else entirely']) {
+    const tree = expand(dock({
+      translate,
+      useProjection: () => ({ active: true }),
+      useInput: (select) => (select ? select({ draft, phase: 'plain' }) : { draft, phase: 'plain' }),
+      inputActions: { setDraft: () => {} },
+      execute: async () => null,
+      rewrite: async () => ({ ok: true, text: 'enhanced', gaps: [] }),
+    }));
+    const button = collect(tree, (n) => n.type === 'button')[0];
+    assert.ok(!String(button.props.className).includes('--undo'),
+      `no undo offer for ${JSON.stringify(draft)}`);
+  }
+});
+
 test('the settings page renders its rows and the template chips', () => {
   const { views } = mountClient();
   const page = views['settings.section#shen-deng-dimensions'];

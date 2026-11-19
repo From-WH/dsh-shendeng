@@ -22,12 +22,12 @@
     {
       "name": "dsh-shendeng",
       "title": {
-        "zh": "神灯",
-        "en": "Shen Deng"
+        "zh": "神灯 · 提示词增强",
+        "en": "Lamp · prompt enhancer"
       },
       "description": {
-        "zh": "读取工作区结构，把模糊的许愿按六个维度体检一遍：交付物、落点、受众、硬约束、验收标准、范围。指出还缺什么、每项建议怎么补，并给出可直接使用的工作说明。支持场景模板、图形化维度配置，以及从会话日志精确统计的体检次数与歧义数。",
-        "en": "Reads the workspace and audits a wish across six dimensions: deliverable, destination, audience, constraints, acceptance, scope. Reports what is still missing, a default for each gap, and a ready-to-use brief. Includes scenario templates, a graphical dimension editor, and exact check/gap counts folded from the session log."
+        "zh": "在输入框旁点亮神灯，把当前提示词增强成更完整、更准确的执行指令。读取工作区结构，把「那个项目」「这个文件」换成真实存在的名字，补齐交付物、落点、受众、硬约束、验收标准与范围，结果直接写回输入框并可一键撤销。维度表可在设置中自定义，或套用写作、代码、翻译、汇报等场景模板。",
+        "en": "Light the lamp beside the composer to turn the current prompt into a more complete, more precise instruction. It reads the workspace so vague references become real names, fills in deliverable, destination, audience, constraints, acceptance, and scope, then writes the result back into the composer with one-step undo. Dimensions are editable in Settings or via scenario templates for writing, coding, translation, and reporting."
       },
       "icon": "./icon.svg",
       "author": "From-WH",
@@ -38,17 +38,17 @@
       "metadata": {
         "category": "productivity",
         "keywords": [
-          "许愿",
-          "需求",
           "提示词",
-          "wish-check",
-          "requirements",
-          "token"
+          "prompt",
+          "增强",
+          "workspace",
+          "撤销",
+          "enhance"
         ]
       },
       "versions": [
         {
-          "version": "1.0.0",
+          "version": "0.1.0",
           "publishTimestamp": 1794214800,
           "source": {
             "type": "npm"

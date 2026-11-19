@@ -1,9 +1,9 @@
 {
   "name": "dsh-shendeng",
-  "version": "1.0.0",
+  "version": "0.1.0",
   "private": true,
   "type": "module",
-  "description": "神灯：读取工作区，把模糊的许愿收敛成可执行的说明。",
+  "description": "神灯：在输入框旁把提示词增强成更完整、更准确的执行指令。",
   "exports": {
     ".": "./index.js",
     "./client": "./client.js",
@@ -35,8 +35,8 @@
   "keywords": [
     "deepseek-harness",
     "dsh-plugin",
-    "wish-check",
     "prompt",
+    "prompt-enhance",
     "requirements",
     "神灯"
   ],

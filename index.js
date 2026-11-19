@@ -571,14 +571,14 @@ function scanFacts(scan) {
 function renderRefineText(result) {
   if (result.intent === 'ask') {
     return [
-      '许愿体检：这是提问，不是施工请求。',
+      '提示词检查：这是提问，不是施工请求。',
       result.brief,
       '下一步：直接回答，不要改工作区，也不要追问交付物。',
     ].join('\n\n');
   }
   const intentLabel = result.intent === 'modify' ? '改现有' : result.intent === 'create' ? '做新的' : '暂未看出';
   const lines = [
-    `许愿体检：${result.score}/${result.total} 个维度已说明${result.clear ? '（已足够清晰）' : ''}`,
+    `提示词检查：${result.score}/${result.total} 个维度已说明${result.clear ? '（已足够清晰）' : ''}`,
     `意图：${intentLabel}${result.targets.length > 0 ? `；工作区命中：${result.targets.join('、')}` : ''}`,
   ];
   if (result.gaps.length > 0) {
@@ -614,7 +614,7 @@ function renderRefineText(result) {
  *
  * `dimensions` is `.volatile()`: the Settings UI lists it, edits persist
  * through the profile patch, and they apply in place — `apply` keeps the field
- * reference and re-reads it on every wish check, so no restart is needed.
+ * reference and re-reads it on every prompt check, so no restart is needed.
  */
 export const Config = z.object({
   dimensions: z.array(z.object({
@@ -917,7 +917,7 @@ export async function apply(ctx, config) {
   ctx.commands.register({
     definitionId: 'shen-deng:lamp',
     name: SWITCH_COMMAND,
-    description: '打开或关闭神灯（许愿体检）',
+    description: '打开或关闭神灯（提示词增强）',
     input: { hint: 'on|off' },
     handler: ({ agent, rawInput }) => {
       const input = typeof rawInput === 'string' ? rawInput.trim() : '';
@@ -942,10 +942,10 @@ export async function apply(ctx, config) {
         text: wanted
           ? already
             ? '神灯已经点亮。'
-            : '神灯已点亮：需求不明确时，我会先做一次许愿体检。'
+            : '神灯已点亮：可以在输入框旁增强提示词。'
           : already
             ? '神灯本来就是灭的。'
-            : '神灯已熄灭：我不再主动做许愿体检，工具仍可手动调用。',
+            : '神灯已熄灭：增强按钮不再生效，工具仍可手动调用。',
       };
     },
   });
@@ -1222,15 +1222,15 @@ export async function apply(ctx, config) {
   });
 
   ctx.systemPrompt.section({
-    name: 'shen-deng:wish-check',
+    name: 'shen-deng:prompt-enhance',
     order: 860,
     text: (context) => {
       if (ctx.tools.get('lamp_refine', context.scope) === undefined) return '';
       if (!litFromContext(context)) return '';
       return [
-        '## 神灯 / wish check',
-        'A wish is a target; without one there is nothing to aim at. When a request is under-specified (no clear deliverable, destination, or acceptance), call `lamp_refine` with the request close to verbatim before you build. Skip the lamp for questions, explanations, and requests that are already specific.',
-        'If the result says intent is ask, answer the question and do not build. If it says the wish is clear, build from the brief. Otherwise ask only the one or two gaps that change the outcome. Anything marked 文中已说明 stays as the user said it; apply a default only to a 待定 line, and say which default you used.',
+        '## 神灯 / prompt enhancement',
+        'The user can enhance the composer prompt from the button beside the input; that is the primary path and needs nothing from you. `lamp_refine` is the same six-dimension check available to you directly: use it when a request is under-specified (no clear deliverable, destination, or acceptance) and you must decide whether to ask or to build.',
+        'If the result says intent is ask, answer the question and do not build. If it says the request is clear, build from the brief. Otherwise ask only the one or two gaps that change the outcome. Anything marked 文中已说明 stays as the user said it; apply a default only to a 待定 line, and say which default you used. Do not offer a separate "prompt check" ceremony — the button already does that job.',
       ].join('\n\n');
     },
   });

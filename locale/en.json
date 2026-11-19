@@ -1,10 +1,11 @@
 {
   "meta": {
-    "title": "Lamp · wish check",
-    "description": "Reads the workspace structure and audits a wish across six dimensions — deliverable, destination, audience, constraints, acceptance, and scope — then reports what is still missing, a default for each gap, and a ready-to-use brief."
+    "title": "Lamp · prompt enhancer",
+    "description": "Light the lamp beside the composer to turn the current prompt into a more complete, more precise instruction. It reads the workspace so vague references like \"that project\" or \"this file\" become real names, fills in deliverable, destination, audience, constraints, acceptance, and scope, then writes the result straight back into the composer with one-step undo."
   },
   "tool": {
-    "lampRefine": "Wish check",
+    "lampRewrite": "Enhance prompt",
+    "lampRefine": "Prompt check",
     "lampScan": "Workspace structure"
   }
 }

@@ -19,8 +19,8 @@ window.__ModuleLoader__.load({
 
     const DICTS = {
       zh: {
-        lamp: '神灯',
-        refineTitle: '许愿体检',
+        lamp: '神灯 · 提示词增强',
+        refineTitle: '提示词检查',
         scanTitle: '工作区结构',
         noWish: '（空的许愿）',
         settled: '已说明',
@@ -42,8 +42,8 @@ window.__ModuleLoader__.load({
         hide: '收起',
         running: '正在读工作区…',
         failed: '神灯没有点亮',
-        switchOnTitle: '点击熄灭：关闭许愿体检',
-        switchOffTitle: '点击点亮：需求模糊时先做许愿体检',
+        switchOnTitle: '点击关闭提示词增强',
+        switchOffTitle: '点击点亮：开启提示词增强',
         switchFailed: '切换失败',
         dockTitle: '神灯',
         rwAction: '增强提示词',
@@ -62,7 +62,7 @@ window.__ModuleLoader__.load({
         rwUndoTitle: '恢复增强前的提示词',
         rwUndone: '已恢复',
         rwOff: '神灯未点亮',
-        cfgIntro: '神灯会按下面的表格检查你的需求；表格行就是检查项。',
+        cfgIntro: '增强时会按下面的表格逐项补全；每一行就是一条检查项。',
         cfgTplLabel: '一键套用场景',
         cfgTplApplied: '已套用模板，可继续微调，别忘了保存',
         cfgReadonly: '当前环境只读，无法保存。',
@@ -89,8 +89,8 @@ window.__ModuleLoader__.load({
         manifestHeading: '项目清单',
       },
       en: {
-        lamp: 'Lamp',
-        refineTitle: 'Wish check',
+        lamp: 'Lamp · prompt enhancer',
+        refineTitle: 'Prompt check',
         scanTitle: 'Workspace structure',
         noWish: '(empty wish)',
         settled: 'settled',
@@ -112,7 +112,7 @@ window.__ModuleLoader__.load({
         hide: 'Hide',
         running: 'Reading the workspace…',
         failed: 'The lamp did not light',
-        switchOnTitle: 'Click to extinguish: turn the wish check off',
+        switchOnTitle: 'Click to turn prompt enhancement off',
         switchOffTitle: 'Click to light: check the wish when a request is vague',
         switchFailed: 'Switch failed',
         dockTitle: 'Lamp',
@@ -132,7 +132,7 @@ window.__ModuleLoader__.load({
         rwUndoTitle: 'Restore the previous prompt',
         rwUndone: 'Restored',
         rwOff: 'Lamp is off',
-        cfgIntro: 'The lamp checks your wish against the rows below.',
+        cfgIntro: 'Enhancing fills in the rows below, one check each.',
         cfgTplLabel: 'Quick start',
         cfgTplApplied: 'Template applied — tweak if you like, then save',
         cfgReadonly: 'Read-only environment; saving is disabled.',
@@ -1195,7 +1195,7 @@ window.__ModuleLoader__.load({
      * `settings.section.icon` receives `{ size, active }` and falls back to the
      * generic Settings glyph when the section registers none — which is why a
      * missing registration made two rows look identical. This is the lamp
-     * itself with three check ticks, echoing "wish check".
+     * itself with three check ticks, echoing the prompt checks.
      */
     function LampSettingsIcon(props) {
       const size = props.size || 16;
@@ -1219,7 +1219,7 @@ window.__ModuleLoader__.load({
           d: 'M3.78 8.5C2.82 7.84 2.07 6.95 1.68 5.95c1.34-.23 2.62.18 3.58 1.07z',
           fill: 'currentColor', opacity: active ? 1 : 0.88,
         }),
-        // three check ticks — the "wish check" signal
+        // three check ticks — the prompt-check signal
         h('g', {
           stroke: 'currentColor', strokeWidth: 1, strokeLinecap: 'round', strokeLinejoin: 'round',
           fill: 'none', opacity: active ? 1 : 0.75,

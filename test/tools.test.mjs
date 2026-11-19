@@ -11,7 +11,7 @@ test('registers its tools, the command, both projections and one prompt section'
   assert.ok(host.commands.lamp, '/lamp is registered');
   assert.deepEqual(Object.keys(host.projections).sort(), ['shenDeng', 'shenDengUsage']);
   assert.equal(host.sections.length, 1);
-  assert.equal(host.sections[0].name, 'shen-deng:wish-check');
+  assert.equal(host.sections[0].name, 'shen-deng:prompt-enhance');
 });
 
 test('lamp_refine refuses to run without an owning agent', async () => {

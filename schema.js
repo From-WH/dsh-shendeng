@@ -63,7 +63,7 @@ export const lampView = {
  * State schema for the usage counter.
  *
  * These are counts of things that actually happened in the Session log, not
- * estimates: how many wish checks ran, how many open dimensions they found,
+ * estimates: how many prompt checks ran, how many open dimensions they found,
  * and how many vague phrases were flagged. Nothing here claims a token saving,
  * because "tokens not wasted on a rework" is a counterfactual and cannot be
  * measured.

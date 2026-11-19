@@ -49,23 +49,22 @@ window.__ModuleLoader__.load({
         switchWorking: '正在切换…',
         switchFailed: '切换失败',
         dockTitle: '神灯',
-        rwAction: '增强提示词',
-        rwActionTitle: '根据已输入的内容，补全并改写成更准确的指令',
-        rwNeedDraft: '先输入点什么',
-        rwHint: '点一下，把草稿补成完整指令',
-        rwWorking: '正在改写…',
-        rwDone: '已改写，可撤销',
-        rwDoneOpen: '已改写；仍待补充：{gaps}',
-        rwUnchanged: '已经足够清楚，无需改写',
-        rwFailed: '改写失败',
-        rwNoModel: '当前没有可用的模型',
-        rwEmpty: '草稿是空的',
+        rwAction: '优化提示词',
+        rwActionTitle: '把草稿补全成更准确的指令',
+        rwNeedDraft: '先输入草稿',
+        rwHint: '点击优化当前草稿',
+        rwWorking: '优化中…',
+        rwDone: '已替换输入框，可撤销',
+        rwDoneOpen: '已替换；待补：{gaps}',
+        rwUnchanged: '已经够清楚了',
+        rwFailed: '优化失败',
+        rwNoModel: '没有可用模型',
+        rwEmpty: '草稿为空',
         rwUndo: '撤销',
-        rwUndoTitle: '恢复改写前的文字',
-        rwUndone: '已恢复原文',
+        rwUndoTitle: '恢复优化前的文字',
+        rwUndone: '已恢复',
         rwChars: '{n} 字',
-        dockMeta: '点击点亮，或输入 /lamp on',
-        dockMetaOn: '需求模糊时先体检再动手',
+        dockMeta: '点击点亮',
         statsPending: '尚未体检',
         statsChecks: '已体检 {n} 次',
         statsGaps: '拦截 {n} 处歧义',
@@ -126,23 +125,22 @@ window.__ModuleLoader__.load({
         switchWorking: 'Switching…',
         switchFailed: 'Switch failed',
         dockTitle: 'Lamp',
-        rwAction: 'Enhance prompt',
-        rwActionTitle: 'Fill in and tighten the draft into a precise instruction',
-        rwNeedDraft: 'Type something first',
-        rwHint: 'Click to turn the draft into a full instruction',
-        rwWorking: 'Rewriting…',
-        rwDone: 'Rewritten — undo available',
-        rwDoneOpen: 'Rewritten; still open: {gaps}',
-        rwUnchanged: 'Already clear enough',
-        rwFailed: 'Rewrite failed',
-        rwNoModel: 'No model available',
-        rwEmpty: 'The draft is empty',
+        rwAction: 'Improve prompt',
+        rwActionTitle: 'Turn the draft into a precise instruction',
+        rwNeedDraft: 'Type a draft',
+        rwHint: 'Click to improve the draft',
+        rwWorking: 'Improving…',
+        rwDone: 'Replaced in the composer — undo available',
+        rwDoneOpen: 'Replaced; open: {gaps}',
+        rwUnchanged: 'Already clear',
+        rwFailed: 'Improve failed',
+        rwNoModel: 'No model',
+        rwEmpty: 'Draft is empty',
         rwUndo: 'Undo',
-        rwUndoTitle: 'Restore the text from before the rewrite',
+        rwUndoTitle: 'Restore the previous text',
         rwUndone: 'Restored',
         rwChars: '{n} chars',
-        dockMeta: 'click to light, or /lamp on',
-        dockMetaOn: 'vague requests get a wish check first',
+        dockMeta: 'click to light',
         statsPending: 'no checks yet',
         statsChecks: '{n} wish checks',
         statsGaps: '{n} gaps caught',
@@ -1112,6 +1110,12 @@ window.__ModuleLoader__.load({
       const input = props.useInput((state) => state);
       const draft = input && typeof input.draft === 'string' ? input.draft : '';
       const locked = input !== undefined && input.phase !== undefined && input.phase !== 'plain';
+      // `inputActions.setDraft` is the composer's own write path: it replaces
+      // the whole draft (chips included) in one undo step.
+      const setDraft = (text) => {
+        const actions = props.inputActions;
+        if (actions !== undefined && typeof actions.setDraft === 'function') actions.setDraft(text);
+      };
 
       const [busy, setBusy] = React.useState(false);
       const [failure, setFailure] = React.useState(null);
@@ -1120,7 +1124,10 @@ window.__ModuleLoader__.load({
       useLampStyles();
 
       const hasDraft = draft.trim() !== '';
-      const canRun = lit && hasDraft && !busy && !locked && typeof props.rewrite === 'function';
+      const canRun = lit && hasDraft && !busy && !locked
+        && typeof props.rewrite === 'function'
+        && props.inputActions !== undefined
+        && typeof props.inputActions.setDraft === 'function';
 
       const run = function () {
         if (!canRun) return;
@@ -1150,7 +1157,7 @@ window.__ModuleLoader__.load({
             // Keep one step of undo: a rewrite the user dislikes must be cheap
             // to discard, or they will stop trusting the button.
             setPrevious(original);
-            props.setDraft(result.text);
+            setDraft(result.text);
             setNote(result.gaps && result.gaps.length > 0
               ? fill(t('rwDoneOpen'), { gaps: result.gaps.join('、') })
               : t('rwDone'));
@@ -1164,7 +1171,7 @@ window.__ModuleLoader__.load({
 
       const undo = function () {
         if (previous === null) return;
-        props.setDraft(previous);
+        setDraft(previous);
         setPrevious(null);
         setNote(t('rwUndone'));
         setFailure(null);

@@ -60,7 +60,7 @@ test('activates and registers everything in a real Cordis context', { skip }, as
   const { root, registered } = makeRoot(['tools', 'commands', 'sessionProjections', 'systemPrompt', 'fs', 'workingDirectory']);
   root.plugin(host, {});
   await settle();
-  assert.deepEqual(Object.keys(registered.tools).sort(), ['lamp_refine', 'lamp_scan']);
+  assert.deepEqual(Object.keys(registered.tools).sort(), ['lamp_refine', 'lamp_rewrite', 'lamp_scan']);
   assert.ok(registered.commands.lamp, 'the /lamp command mounts');
   assert.deepEqual(Object.keys(registered.projections).sort(), ['shenDeng', 'shenDengUsage']);
   assert.equal(registered.sections.length, 1);

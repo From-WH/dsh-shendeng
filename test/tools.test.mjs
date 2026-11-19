@@ -4,10 +4,10 @@ import assert from 'node:assert/strict';
 import { apply } from '../index.js';
 import { diskFs, execContext, isGap, makeHost, makeWorkspace } from './helpers.mjs';
 
-test('registers both tools, the command, both projections and one prompt section', async () => {
+test('registers its tools, the command, both projections and one prompt section', async () => {
   const host = makeHost();
   await apply(host.ctx, undefined);
-  assert.deepEqual(Object.keys(host.tools).sort(), ['lamp_refine', 'lamp_scan']);
+  assert.deepEqual(Object.keys(host.tools).sort(), ['lamp_refine', 'lamp_rewrite', 'lamp_scan']);
   assert.ok(host.commands.lamp, '/lamp is registered');
   assert.deepEqual(Object.keys(host.projections).sort(), ['shenDeng', 'shenDengUsage']);
   assert.equal(host.sections.length, 1);

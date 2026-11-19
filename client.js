@@ -49,6 +49,21 @@ window.__ModuleLoader__.load({
         switchWorking: '正在切换…',
         switchFailed: '切换失败',
         dockTitle: '神灯',
+        rwAction: '增强提示词',
+        rwActionTitle: '根据已输入的内容，补全并改写成更准确的指令',
+        rwNeedDraft: '先输入点什么',
+        rwHint: '点一下，把草稿补成完整指令',
+        rwWorking: '正在改写…',
+        rwDone: '已改写，可撤销',
+        rwDoneOpen: '已改写；仍待补充：{gaps}',
+        rwUnchanged: '已经足够清楚，无需改写',
+        rwFailed: '改写失败',
+        rwNoModel: '当前没有可用的模型',
+        rwEmpty: '草稿是空的',
+        rwUndo: '撤销',
+        rwUndoTitle: '恢复改写前的文字',
+        rwUndone: '已恢复原文',
+        rwChars: '{n} 字',
         dockMeta: '点击点亮，或输入 /lamp on',
         dockMetaOn: '需求模糊时先体检再动手',
         statsPending: '尚未体检',
@@ -111,6 +126,21 @@ window.__ModuleLoader__.load({
         switchWorking: 'Switching…',
         switchFailed: 'Switch failed',
         dockTitle: 'Lamp',
+        rwAction: 'Enhance prompt',
+        rwActionTitle: 'Fill in and tighten the draft into a precise instruction',
+        rwNeedDraft: 'Type something first',
+        rwHint: 'Click to turn the draft into a full instruction',
+        rwWorking: 'Rewriting…',
+        rwDone: 'Rewritten — undo available',
+        rwDoneOpen: 'Rewritten; still open: {gaps}',
+        rwUnchanged: 'Already clear enough',
+        rwFailed: 'Rewrite failed',
+        rwNoModel: 'No model available',
+        rwEmpty: 'The draft is empty',
+        rwUndo: 'Undo',
+        rwUndoTitle: 'Restore the text from before the rewrite',
+        rwUndone: 'Restored',
+        rwChars: '{n} chars',
         dockMeta: 'click to light, or /lamp on',
         dockMetaOn: 'vague requests get a wish check first',
         statsPending: 'no checks yet',
@@ -991,6 +1021,20 @@ window.__ModuleLoader__.load({
 .sd-lampbtn[data-lit="1"] .sd-ember { animation: sd-rise 2.8s ease-out infinite; }
 
 /* the text block takes the free space; the stats pill sits at the end */
+.sd-undo {
+  flex: none;
+  border: 1px solid var(--dsw-alias-border-l2);
+  background: none;
+  color: var(--dsw-alias-label-secondary);
+  border-radius: 6px;
+  padding: 1px 8px;
+  cursor: pointer;
+  font: inherit;
+  font-size: 11px;
+  white-space: nowrap;
+}
+.sd-undo:hover { color: var(--dsw-alias-label-primary); }
+
 .sd-stats {
   position: relative;
   z-index: 1;
@@ -1053,26 +1097,63 @@ window.__ModuleLoader__.load({
      * The lamp console below the composer: a dormant/lit switch whose state comes
      * from the Session projection and whose writes go through `/lamp`.
      */
+    /**
+     * The dock control: one click turns the current composer draft into a
+     * complete, unambiguous instruction.
+     *
+     * The lamp is now an **action**, not a switch. The switch state survives as
+     * the enable flag: when the lamp is dark the button explains how to turn it
+     * on; when it is lit, pressing rewrites the draft in place, and an undo
+     * restores the original text.
+     */
     function LampConsole(props) {
       const t = props.translate();
-      const value = lampStateOf(props.useProjection('shenDeng'));
-      const rawUsage = props.useProjection('shenDengUsage');
-      const usage = rawUsage && typeof rawUsage === 'object'
-        ? { checks: Number(rawUsage.checks) || 0, gaps: Number(rawUsage.gaps) || 0 }
-        : { checks: 0, gaps: 0 };
-      const lit = value.lit;
+      const lit = lampStateOf(props.useProjection('shenDeng')).lit;
+      const input = props.useInput((state) => state);
+      const draft = input && typeof input.draft === 'string' ? input.draft : '';
+      const locked = input !== undefined && input.phase !== undefined && input.phase !== 'plain';
+
       const [busy, setBusy] = React.useState(false);
       const [failure, setFailure] = React.useState(null);
+      const [note, setNote] = React.useState(null);
+      const [previous, setPrevious] = React.useState(null);
       useLampStyles();
 
-      const toggle = function () {
-        if (busy) return;
+      const hasDraft = draft.trim() !== '';
+      const canRun = lit && hasDraft && !busy && !locked && typeof props.rewrite === 'function';
+
+      const run = function () {
+        if (!canRun) return;
+        const original = draft;
         setBusy(true);
         setFailure(null);
-        Promise.resolve(props.execute(lit ? '/lamp off' : '/lamp on')).then(
-          function (error) {
+        setNote(null);
+        Promise.resolve(props.rewrite(original)).then(
+          function (result) {
             setBusy(false);
-            if (error !== null && error !== undefined) setFailure(String(error));
+            if (result === null || typeof result !== 'object') {
+              setFailure(t('rwFailed'));
+              return;
+            }
+            if (result.ok !== true) {
+              setFailure(result.reason === 'no-llm' || result.reason === 'no-model'
+                ? t('rwNoModel')
+                : result.reason === 'empty-draft'
+                  ? t('rwEmpty')
+                  : t('rwFailed'));
+              return;
+            }
+            if (result.text === original) {
+              setNote(t('rwUnchanged'));
+              return;
+            }
+            // Keep one step of undo: a rewrite the user dislikes must be cheap
+            // to discard, or they will stop trusting the button.
+            setPrevious(original);
+            props.setDraft(result.text);
+            setNote(result.gaps && result.gaps.length > 0
+              ? fill(t('rwDoneOpen'), { gaps: result.gaps.join('、') })
+              : t('rwDone'));
           },
           function (error) {
             setBusy(false);
@@ -1081,35 +1162,47 @@ window.__ModuleLoader__.load({
         );
       };
 
-      const stateLabel = lit ? t('switchOn') : t('switchOff');
+      const undo = function () {
+        if (previous === null) return;
+        props.setDraft(previous);
+        setPrevious(null);
+        setNote(t('rwUndone'));
+        setFailure(null);
+      };
+
+      const label = busy
+        ? t('rwWorking')
+        : !lit
+          ? t('switchOff')
+          : hasDraft
+            ? t('rwAction')
+            : t('rwNeedDraft');
+
       const meta = failure !== null
         ? failure
-        : busy
-          ? t('switchWorking')
-          : lit
-            ? t('dockMetaOn')
-            : t('dockMeta');
+        : note !== null
+          ? note
+          : busy
+            ? t('rwWorking')
+            : lit
+              ? t('rwHint')
+              : t('dockMeta');
 
       return h('div', { className: 'sd-dock' },
         h('div', { className: 'sd-row', 'data-lit': lit ? '1' : '0' },
-          // The lamp IS the control: no track, no knob. Pressing the lamp
-          // lights it; pressing again puts it out.
           h('button', {
             type: 'button',
             className: 'sd-lampbtn',
             'data-lit': lit ? '1' : '0',
-            'aria-pressed': lit,
-            'aria-label': lit ? t('switchOnTitle') : t('switchOffTitle'),
-            title: lit ? t('switchOnTitle') : t('switchOffTitle'),
-            disabled: busy,
-            onClick: toggle,
+            'aria-busy': busy ? 'true' : undefined,
+            'aria-label': label,
+            title: lit ? t('rwActionTitle') : t('switchOffTitle'),
+            disabled: busy || (lit && (!hasDraft || locked)),
+            onClick: run,
           },
             h(AladdinLamp, { size: 24, lit: lit }),
-            lit
-              ? h(React.Fragment, null,
-                  h('span', { className: 'sd-ember', style: { left: 3, top: 2, animationDelay: '0ms' } }),
-                  h('span', { className: 'sd-ember', style: { left: 9, top: 0, animationDelay: '950ms' } }),
-                )
+            lit && busy
+              ? h('span', { className: 'sd-ember', style: { left: 3, top: 2, animationDelay: '0ms' } })
               : null,
           ),
 
@@ -1117,40 +1210,34 @@ window.__ModuleLoader__.load({
             type: 'button',
             className: 'sd-text-btn',
             'data-lit': lit ? '1' : '0',
-            'aria-pressed': lit,
             disabled: busy,
-            onClick: toggle,
-            title: lit ? t('switchOnTitle') : t('switchOffTitle'),
+            onClick: run,
+            title: lit ? t('rwActionTitle') : t('switchOffTitle'),
           },
-            h('span', { className: 'sd-title' }, stateLabel),
+            h('span', { className: 'sd-title' }, label),
             h('span', { className: 'sd-dot', 'aria-hidden': true }),
-            failure !== null
-              ? h('span', { className: 'sd-sub', 'data-error': '1', title: failure }, failure)
-              : h('span', { className: 'sd-sub' }, meta),
+            h('span', {
+              className: 'sd-sub',
+              'data-error': failure !== null ? '1' : '0',
+              title: meta,
+            }, meta),
           ),
 
-          // Real counts folded from this Session's own log — not an estimate.
-          h('span', {
-            className: 'sd-stats',
-            'data-placeholder': usage.checks === 0 ? '1' : '0',
-            title: usage.checks === 0
-              ? t('statsPending')
-              : fill(t('statsChecks'), { n: usage.checks }) + ' · ' + fill(t('statsGaps'), { n: usage.gaps }),
-          },
-            usage.checks === 0
-              ? t('statsPending')
-              : fill(t('statsChecks'), { n: usage.checks }) + ' · ' + fill(t('statsGaps'), { n: usage.gaps })),
+          previous !== null && !busy
+            ? h('button', {
+                type: 'button',
+                className: 'sd-undo',
+                onClick: undo,
+                title: t('rwUndoTitle'),
+              }, t('rwUndo'))
+            : null,
+
+          h('span', { className: 'sd-stats', 'data-placeholder': '0' },
+            fill(t('rwChars'), { n: draft.trim().length })),
         ),
       );
     }
 
-    /**
-     * Ready-made dimension tables, one per common scenario.
-     *
-     * Most people cannot write a dimension; they can recognise their scenario.
-     * Picking a template fills the whole table, which they may then tweak or
-     * save as-is. "Built-in six" restores the lamp's defaults.
-     */
     /** The lamp's built-in six, so "restore defaults" can refill the form. */
     const BUILT_IN_TEMPLATE = [
       { id: 'artifact', label: '交付物', match: ['网站','网页','页面','插件','脚本','程序','文档','报告','文章','文案','邮件','周报','翻译','图片','表格','函数','接口','.js','.md','.py','.html'], ask: '最终要拿到什么？一个文件、一个能跑的程序，还是一段文字？', suggest: '先定一个可打开、可运行的产物，而不是“一套方案”。' },
@@ -1506,6 +1593,54 @@ window.__ModuleLoader__.load({
          * same `/lamp` path the model sees; the only difference is that the
          * closed-book composer has no Session yet, so there is nothing to write.
          */
+        /** Marker the Host prefixes a rewritten draft with; see index.js. */
+        const REWRITE_MARK = '\u0000LAMP-REWRITE\u0000';
+
+        /**
+         * Run one command and return its raw result text, or a string naming
+         * the failure.
+         */
+        const runLampRaw = async (sessionId, line) => {
+          if (sessionId === undefined) return { ok: false, reason: 'no-session' };
+          let commands;
+          try {
+            commands = ctx.remote?.commands;
+          } catch (error) {
+            return { ok: false, reason: 'remote-unavailable' };
+          }
+          if (commands === undefined || typeof commands.execute !== 'function') {
+            return { ok: false, reason: 'command-unavailable' };
+          }
+          let result;
+          try {
+            result = await commands.execute(sessionId, line, []);
+          } catch (error) {
+            return { ok: false, reason: error instanceof Error ? error.message : 'command-threw' };
+          }
+          if (!result || result.ok !== true) return { ok: false, reason: 'command-failed' };
+          if (result.value === undefined) return { ok: false, reason: 'unknown-command' };
+          const inner = result.value.result;
+          if (inner === undefined || inner === null) return { ok: false, reason: 'no-result' };
+          return typeof inner.text === 'string' ? inner.text : '';
+        };
+
+        /**
+         * Split a `/lamp rewrite` reply into `{ ok, text, reason }`.
+         *
+         * The marker carries a control character, so a model-supplied draft
+         * cannot forge it; anything unmarked is treated as a plain failure to
+         * keep the button honest.
+         */
+        const parseRewriteReply = (raw) => {
+          if (typeof raw !== 'string' || raw.indexOf(REWRITE_MARK) !== 0) {
+            return { ok: false, reason: 'bad-reply' };
+          }
+          const body = raw.slice(REWRITE_MARK.length);
+          if (body.indexOf('ok:') === 0) return { ok: true, text: body.slice(3), gaps: [] };
+          if (body.indexOf('fail:') === 0) return { ok: false, reason: body.slice(5) };
+          return { ok: false, reason: 'bad-reply' };
+        };
+
         const runLamp = (sessionId) => async (line) => {
           if (sessionId === undefined) return 'start a conversation first';
           let commands;
@@ -1568,6 +1703,13 @@ window.__ModuleLoader__.load({
           inject: (sessionId) => ({
             translate: makeTranslator(localeSvc),
             execute: runLamp(sessionId),
+            // Commands are the only remote entry a plugin may expose, so the
+            // rewrite rides `/lamp rewrite` and returns its text after a marker.
+            rewrite: async (draft) => {
+              const raw = await runLampRaw(sessionId, '/lamp rewrite ' + draft);
+              if (typeof raw !== 'string') return raw;
+              return parseRewriteReply(raw);
+            },
           }),
         }, LampConsole));
 

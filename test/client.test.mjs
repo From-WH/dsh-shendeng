@@ -189,24 +189,29 @@ test('a failed tool call reports the failure instead of a blank row', () => {
   assert.ok(texts.some((t) => t.includes('failed') || t.includes('boom')), 'the error text reaches the row');
 });
 
-test('the composer console renders lit, dark, and with no counter yet', () => {
+test('the composer dock renders its action row in every state', () => {
   const { views } = mountClient();
-  const console = views['conversation.composer.dock#shen-deng-console'];
+  const dock = views['conversation.composer.dock#shen-deng-console'];
   const cases = [
-    [{ active: false }, undefined],
-    [{ active: true }, { checks: 2, gaps: 5 }],
-    [{ active: true }, null],
+    ['dark, empty', { active: false }, { draft: '', phase: 'plain' }],
+    ['lit, empty', { active: true }, { draft: '', phase: 'plain' }],
+    ['lit, ready', { active: true }, { draft: '做个网站', phase: 'plain' }],
+    ['lit, locked', { active: true }, { draft: '做个网站', phase: 'sending' }],
   ];
-  for (const [projection, usage] of cases) {
-    const tree = expand(console({
+  for (const [label, projection, input] of cases) {
+    const tree = expand(dock({
       translate,
-      useProjection: (key) => (key === 'shenDeng' ? projection : key === 'shenDengUsage' ? usage : undefined),
+      useProjection: (key) => (key === 'shenDeng' ? projection : undefined),
+      useInput: (select) => (select ? select(input) : input),
       execute: async () => null,
+      rewrite: async () => ({ ok: true, text: 'next', gaps: [] }),
+      setDraft: () => {},
     }));
     const row = collect(tree, (n) => n.props.className === 'sd-row')[0];
-    assert.ok(row, 'the row renders');
+    assert.ok(row, `the row renders (\${label})`);
     const classes = row.children.filter((c) => c && typeof c === 'object').map((c) => c.props.className);
-    assert.deepEqual(classes, ['sd-lampbtn', 'sd-text-btn', 'sd-stats']);
+    assert.equal(classes[0], 'sd-lampbtn');
+    assert.equal(classes[1], 'sd-text-btn');
   }
 });
 
@@ -240,7 +245,14 @@ test('no rendered style carries undefined or NaN', () => {
   const { views } = mountClient();
   const trees = [
     views['settings.section#shen-deng-dimensions']({ translate, form: () => ({ getSnapshot: () => ({ value: { dimensions: [] }, writable: true, revision: 0 }), subscribe: () => () => {} }), update: async () => ({ ok: true }) }),
-    views['conversation.composer.dock#shen-deng-console']({ translate, useProjection: () => ({ active: true }), execute: async () => null }),
+    views['conversation.composer.dock#shen-deng-console']({
+      translate,
+      useProjection: () => ({ active: true }),
+      useInput: (select) => (select ? select({ draft: 'x', phase: 'plain' }) : { draft: 'x', phase: 'plain' }),
+      execute: async () => null,
+      rewrite: async () => ({ ok: true, text: 'y', gaps: [] }),
+      setDraft: () => {},
+    }),
     views['settings.section.icon#shen-deng-dimensions']({ size: 16, active: true }),
   ];
   const bad = [];

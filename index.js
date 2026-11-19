@@ -33,6 +33,15 @@ export const inject = [
   'sessionProjections',
 ];
 
+/**
+ * Services the rewrite path needs but the rest of the lamp does not.
+ *
+ * They are read with `ctx.get()` rather than declared in `inject`, so a profile
+ * without a model adapter still loads the lamp; clicking the lamp there reports
+ * the missing service instead of taking the whole plugin down.
+ */
+const OPTIONAL_SERVICES = ['llm', 'agentDefaultModel'];
+
 const SWITCH_COMMAND = 'lamp';
 
 const SKIP_NAMES = new Set([
@@ -618,7 +627,116 @@ export const Config = z.object({
   })).volatile().description('体检维度表；整体替换内置六维'),
 });
 /* ------------------------------------------------------------------ *
- * The lamp switch/* ------------------------------------------------------------------ *
+ * Prompt rewrite
+ * ------------------------------------------------------------------ */
+
+/**
+ * The instruction handed to the model.
+ *
+ * It is deliberately narrow: keep the user's intent, fill only what the six
+ * dimensions would have asked for, and never add scope the user did not imply.
+ * A rewrite that invents requirements is worse than no rewrite, because the
+ * user sends it without reading closely.
+ */
+const REWRITE_SYSTEM = [
+  '你是一个提示词改写器。用户会给你一段他自己写的需求草稿。',
+  '你的任务：在不改变原意、不新增范围的前提下，把这段草稿改写成一个更完整、更准确的执行指令。',
+  '',
+  '规则：',
+  '1. 保留用户已经说清楚的一切，包括他指定的文件名、目录、技术栈、数字。不要删。',
+  '2. 只补充用户没说、但执行时必须知道的信息：交付物是什么、落在哪里、给谁看、有什么硬约束、怎样算完成、这一版做多大。',
+  '3. 无法从草稿推断的信息，不要编造。用一句简短的话点出这个空缺，让用户自己填，例如“（篇幅待定）”。',
+  '4. 不要写成邮件、不要寒暄、不要解释你在做什么。只输出改写后的指令本身。',
+  '5. 保持用户的语言（中文草稿输出中文）。',
+  '6. 长度控制在原草稿的 3 倍以内。宁可短而准，不要长而空。',
+].join('\n');
+
+/** Assemble one rewrite request. */
+function rewriteMessages(draft) {
+  return [
+    { role: 'system', content: [{ type: 'text', text: REWRITE_SYSTEM }] },
+    { role: 'user', content: [{ type: 'text', text: draft }] },
+  ];
+}
+
+/**
+ * Collect a model stream into plain text.
+ * @returns the text, or throws on a failed stream.
+ */
+async function collectStream(stream) {
+  let text = '';
+  let failure = null;
+  for await (const chunk of stream) {
+    if (chunk.type === 'text-delta' && typeof chunk.text === 'string') text += chunk.text;
+    else if (chunk.type === 'finish' && chunk.reason && chunk.reason.kind !== 'stop') failure = chunk.reason;
+  }
+  if (failure !== null) throw new Error(`模型没有正常结束：${failure.kind}`);
+  return text.trim();
+}
+
+/**
+ * Strip the packaging a model sometimes adds despite the instruction: a
+ * leading label, a fenced block, or surrounding quotes.
+ */
+export function unwrapRewrite(text) {
+  let out = typeof text === 'string' ? text.trim() : '';
+  const fence = /^```[a-z]*\n([\s\S]*?)\n```$/i.exec(out);
+  if (fence !== null) out = fence[1].trim();
+  out = out.replace(/^(改写后|优化后|改写结果|提示词)[:：]\s*/u, '');
+  if (out.length > 1 && /^["「“]/.test(out) && /["」”]$/.test(out)) out = out.slice(1, -1).trim();
+  return out;
+}
+
+/**
+ * Rewrite one draft through the configured model.
+ * @returns `{ ok: true, text }` or `{ ok: false, reason }`.
+ */
+async function rewriteDraft(ctx, draft) {
+  const llm = ctx.get('llm');
+  if (llm === undefined || typeof llm.stream !== 'function') {
+    return { ok: false, reason: 'no-llm' };
+  }
+  const selector = ctx.get('agentDefaultModel');
+  const selection = selector === undefined || typeof selector.currentSelection !== 'function'
+    ? undefined
+    : selector.currentSelection();
+  if (selection === undefined || typeof selection.provider !== 'string' || typeof selection.model !== 'string') {
+    return { ok: false, reason: 'no-model' };
+  }
+  try {
+    const text = await collectStream(llm.stream({
+      provider: selection.provider,
+      model: selection.model,
+      messages: rewriteMessages(draft),
+    }));
+    const cleaned = unwrapRewrite(text);
+    if (cleaned === '') return { ok: false, reason: 'empty' };
+    return { ok: true, text: cleaned };
+  } catch (error) {
+    return { ok: false, reason: 'stream-failed', detail: error instanceof Error ? error.message : String(error) };
+  }
+}
+
+/**
+ * Wire format between the command and the Client.
+ *
+ * A command result is plain text, so the rewritten draft travels after this
+ * marker. It is a control character sequence a model would never emit, so the
+ * Client can split without ambiguity in either language.
+ */
+const REWRITE_MARK = '\u0000LAMP-REWRITE\u0000';
+
+/**
+ * Run a rewrite on behalf of `/lamp rewrite` and fold the outcome into the
+ * one text field a command may return.
+ */
+async function rewriteForCommand(ctx, draft) {
+  const result = await rewriteDraft(ctx, draft);
+  if (!result.ok) return { kind: 'error', text: `${REWRITE_MARK}fail:${result.reason}` };
+  return { kind: 'success', text: `${REWRITE_MARK}ok:${result.text}` };
+}
+
+/* ------------------------------------------------------------------ *
  * The lamp switch
  * ------------------------------------------------------------------ */
 
@@ -757,9 +875,18 @@ export async function apply(ctx, config) {
     description: '打开或关闭神灯（许愿体检）',
     input: { hint: 'on|off' },
     handler: ({ agent, rawInput }) => {
-      const wanted = parseLampArgs(rawInput);
+      const input = typeof rawInput === 'string' ? rawInput.trim() : '';
+      // `/lamp rewrite <draft>` is the Client's path to the rewrite: commands
+      // are the only remote entry a plugin may expose, and this one returns
+      // the text the browser writes back into the composer.
+      if (/^rewrite\b/i.test(input)) {
+        const draft = input.slice('rewrite'.length).trim();
+        if (draft === '') return { kind: 'error', text: REWRITE_MARK + 'empty-draft' };
+        return rewriteForCommand(ctx, draft);
+      }
+      const wanted = parseLampArgs(input);
       if (wanted === null) {
-        return { kind: 'error', text: '用法：/lamp on 或 /lamp off' };
+        return { kind: 'error', text: '用法：/lamp on、/lamp off 或 /lamp rewrite <草稿>' };
       }
       // The projection commits this command's outcome on `command/done`, which
       // the framework appends right after this handler returns. Reporting the
@@ -986,6 +1113,65 @@ export async function apply(ctx, config) {
         brief: buildBrief(wish, audit, effectiveScan, currentTable()),
         facts: scanFacts(effectiveScan),
       };
+    },
+  });
+
+  /**
+   * The rewrite tool behind the dock button.
+   *
+   * The Client sends the composer draft and receives rewritten text; it never
+   * talks to a model directly, and this tool is the only path that does. A
+   * model-facing tool (rather than a hidden remote method) keeps the capability
+   * visible to the agent too — the model can rewrite a draft it was handed.
+   */
+  ctx.tools.register({
+    name: 'lamp_rewrite',
+    description:
+      'Rewrite a draft request so it is complete and unambiguous before it is sent: keep everything the user already said, fill only what execution genuinely needs (deliverable, destination, audience, constraints, acceptance, scope), and mark what cannot be inferred instead of inventing it. Returns the rewritten text plus which dimensions were still open.',
+    parameters: {
+      type: 'object',
+      required: ['draft'],
+      properties: {
+        draft: {
+          type: 'string',
+          description: 'The text to rewrite, verbatim as the user wrote it.',
+        },
+      },
+    },
+    output: {
+      schema: {
+        type: 'object',
+        additionalProperties: false,
+        required: ['ok', 'text', 'gaps', 'reason'],
+        properties: {
+          ok: { type: 'boolean' },
+          text: { type: 'string' },
+          gaps: { type: 'array', items: { type: 'string' } },
+          reason: { type: 'string' },
+        },
+      },
+      render: (_args, value) => [{
+        type: 'text',
+        text: value.ok
+          ? `Rewrite ready${value.gaps.length > 0 ? ` (still open: ${value.gaps.join(', ')})` : ''}:\n\n${value.text}`
+          : `Rewrite unavailable: ${value.reason}`,
+      }],
+      presentationMeta: (_args, value) => ({ shenDeng: { kind: 'rewrite', ok: value.ok, reason: value.reason, gaps: value.gaps } }),
+    },
+    async execute(args) {
+      const draft = typeof args?.draft === 'string' ? args.draft.trim() : '';
+      if (draft === '') {
+        return { ok: false, text: '', gaps: [], reason: 'empty-draft' };
+      }
+      // What the six dimensions would still ask; the UI shows this as a hint
+      // so the user knows what the rewrite had to leave open.
+      const audit = auditWish(draft, null, currentTable());
+      const gaps = audit.gaps.map((gap) => gap.label);
+      const result = await rewriteDraft(ctx, draft);
+      if (!result.ok) {
+        return { ok: false, text: '', gaps, reason: result.reason };
+      }
+      return { ok: true, text: result.text, gaps, reason: '' };
     },
   });
 

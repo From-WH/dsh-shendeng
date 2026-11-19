@@ -904,6 +904,7 @@ window.__ModuleLoader__.load({
 .sd-row {
   display: flex;
   align-items: center;
+  justify-content: center;
   gap: 9px;
   width: 100%;
   max-width: 760px;
@@ -938,74 +939,11 @@ window.__ModuleLoader__.load({
 .sd-lampbtn:disabled { cursor: default; opacity: .55; }
 .sd-lampbtn:focus-visible { outline: 1.5px solid rgba(196, 152, 255, 0.8); outline-offset: 2px; }
 
-/* the text beside it is a second hit area on the same action */
-.sd-text-btn {
-  position: relative;
-  z-index: 1;
-  display: flex;
-  flex-direction: row;
-  align-items: baseline;
-  gap: 7px;
-  min-width: 0;
-  padding: 0 8px 0 1px;
-  border: 0;
-  background: none;
-  color: inherit;
-  font: inherit;
-  text-align: left;
-  cursor: pointer;
-  border-radius: 6px;
-}
-/* No independent fill here: the row's single light pool reaches this text.
-   Painting a second rectangle was what made the lit state look cut out. */
-.sd-text-btn:disabled { cursor: default; opacity: .55; }
-.sd-text-btn:focus-visible { outline: 1.5px solid rgba(196, 152, 255, 0.8); outline-offset: 3px; }
-
-.sd-title {
-  font-size: 12px;
-  line-height: 16px;
-  flex: none;
-  letter-spacing: .04em;
-  /* Theme-owned so it stays legible in both palettes; the lamp keeps its own
-     violet identity, the words beside it follow the surrounding UI. */
-  color: var(--dsw-alias-label-primary);
-  white-space: nowrap;
-  transition: color 240ms ease;
-}
-.sd-text-btn[data-lit="1"] .sd-title {
-  font-weight: 500;
-}
-
-.sd-sub {
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  font-size: 11px;
-  line-height: 15px;
-  color: var(--dsw-alias-label-secondary);
-  transition: color 240ms ease;
-}
-.sd-sub[data-error="1"] { color: var(--dsw-alias-state-error-primary); }
-
-/* The one-line separator between state and detail. */
-.sd-dot {
-  flex: none;
-  width: 3px;
-  height: 3px;
-  border-radius: 50%;
-  background: currentColor;
-  opacity: .38;
-  align-self: center;
-}.sd-sub[data-error="1"] { color: var(--dsw-alias-state-error-primary); }
-
 .sd-lampbtn svg.sd-lamp-svg { position: relative; display: block; }
-
 .sd-flame {
   transform-origin: 50% 92%;
   animation: sd-ignite 420ms cubic-bezier(.22,1.2,.4,1) both, sd-flicker 3.4s ease-in-out 420ms infinite;
 }
-
 .sd-ember {
   position: absolute;
   width: 1.5px;
@@ -1018,37 +956,16 @@ window.__ModuleLoader__.load({
 }
 .sd-lampbtn[data-lit="1"] .sd-ember { animation: sd-rise 2.8s ease-out infinite; }
 
-/* the text block takes the free space; the stats pill sits at the end */
-.sd-undo {
-  flex: none;
-  border: 1px solid var(--dsw-alias-border-l2);
-  background: none;
-  color: var(--dsw-alias-label-secondary);
-  border-radius: 6px;
-  padding: 1px 8px;
-  cursor: pointer;
-  font: inherit;
-  font-size: 11px;
-  white-space: nowrap;
+/* The lamp's own halo: the only decorative light left in the dock. */
+.sd-lampbtn[data-lit="1"] {
+  filter: drop-shadow(0 0 5px rgba(196, 140, 255, 0.55));
 }
-.sd-undo:hover { color: var(--dsw-alias-label-primary); }
 
-.sd-stats {
-  position: relative;
-  z-index: 1;
-  flex: none;
-  margin-left: auto;
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  padding: 1px 8px;
-  border-radius: 999px;
-  border: 1px solid var(--dsw-alias-border-l1);
-  color: var(--dsw-alias-label-secondary);
-  white-space: nowrap;
-  font-variant-numeric: tabular-nums;
-}
-.sd-stats[data-placeholder="1"] { opacity: .72; }
+.sd-lampbtn--undo { color: var(--dsw-alias-label-secondary); }
+.sd-lampbtn--undo:hover { color: var(--dsw-alias-label-primary); }
+.sd-lampbtn[data-error="1"] { color: var(--dsw-alias-state-error-primary); }
+
+
 
 @media (prefers-reduced-motion: reduce) {
   .sd-dock * { animation: none !important; transition: none !important; }
@@ -1195,53 +1112,62 @@ window.__ModuleLoader__.load({
               ? t('rwHint')
               : t('dockMeta');
 
+      // Minimal dock: the lamp is the action, and after a rewrite the same
+      // spot offers undo. No labels, no counters, no secondary line — the
+      // result of a rewrite is visible in the composer itself.
+      const showingUndo = previous !== null && !busy;
+      const iconLabel = failure !== null
+        ? failure
+        : busy
+          ? t('rwWorking')
+          : showingUndo
+            ? t('rwUndoTitle')
+            : !lit
+              ? t('switchOffTitle')
+              : hasDraft
+                ? t('rwActionTitle')
+                : t('rwNeedDraft');
+
       return h('div', { className: 'sd-dock' },
         h('div', { className: 'sd-row', 'data-lit': lit ? '1' : '0' },
           h('button', {
             type: 'button',
-            className: 'sd-lampbtn',
+            className: 'sd-lampbtn' + (showingUndo ? ' sd-lampbtn--undo' : ''),
             'data-lit': lit ? '1' : '0',
             'aria-busy': busy ? 'true' : undefined,
-            'aria-label': label,
-            title: lit ? t('rwActionTitle') : t('switchOffTitle'),
-            disabled: busy || (lit && (!hasDraft || locked)),
-            onClick: run,
+            'aria-label': iconLabel,
+            title: iconLabel,
+            'data-error': failure !== null ? '1' : '0',
+            // Undo only needs a stored previous text; the rewrite needs a
+            // writable composer, a draft, and an unlocked input.
+            disabled: busy || (showingUndo ? false : (lit ? !canRun : false)),
+            onClick: showingUndo ? undo : run,
           },
-            h(AladdinLamp, { size: 24, lit: lit }),
-            lit && busy
-              ? h('span', { className: 'sd-ember', style: { left: 3, top: 2, animationDelay: '0ms' } })
-              : null,
+            showingUndo
+              ? h(UndoGlyph, { size: 18 })
+              : h(AladdinLamp, { size: 22, lit: lit && hasDraft }),
           ),
-
-          h('button', {
-            type: 'button',
-            className: 'sd-text-btn',
-            'data-lit': lit ? '1' : '0',
-            disabled: busy,
-            onClick: run,
-            title: lit ? t('rwActionTitle') : t('switchOffTitle'),
-          },
-            h('span', { className: 'sd-title' }, label),
-            h('span', { className: 'sd-dot', 'aria-hidden': true }),
-            h('span', {
-              className: 'sd-sub',
-              'data-error': failure !== null ? '1' : '0',
-              title: meta,
-            }, meta),
-          ),
-
-          previous !== null && !busy
-            ? h('button', {
-                type: 'button',
-                className: 'sd-undo',
-                onClick: undo,
-                title: t('rwUndoTitle'),
-              }, t('rwUndo'))
-            : null,
-
-          h('span', { className: 'sd-stats', 'data-placeholder': '0' },
-            fill(t('rwChars'), { n: draft.trim().length })),
         ),
+      );
+    }
+
+    /** A counter-clockwise arrow: undo. */
+    function UndoGlyph(props) {
+      const size = props.size || 18;
+      return h('svg', {
+        viewBox: '0 0 16 16', width: size, height: size, 'aria-hidden': true,
+        style: { display: 'block', flex: 'none' },
+      },
+        h('path', {
+          d: 'M3.2 8.6a4.9 4.9 0 1 1 1.7 3.7',
+          fill: 'none', stroke: 'currentColor', strokeWidth: 1.5,
+          strokeLinecap: 'round',
+        }),
+        h('path', {
+          d: 'M3.1 4.6v4.1h4.1',
+          fill: 'none', stroke: 'currentColor', strokeWidth: 1.5,
+          strokeLinecap: 'round', strokeLinejoin: 'round',
+        }),
       );
     }
 

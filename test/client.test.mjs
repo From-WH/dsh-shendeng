@@ -189,30 +189,49 @@ test('a failed tool call reports the failure instead of a blank row', () => {
   assert.ok(texts.some((t) => t.includes('failed') || t.includes('boom')), 'the error text reaches the row');
 });
 
-test('the composer dock renders its action row in every state', () => {
+test('the composer dock is a single icon that switches to undo', () => {
   const { views } = mountClient();
   const dock = views['conversation.composer.dock#shen-deng-console'];
-  const cases = [
-    ['dark, empty', { active: false }, { draft: '', phase: 'plain' }],
-    ['lit, empty', { active: true }, { draft: '', phase: 'plain' }],
-    ['lit, ready', { active: true }, { draft: '做个网站', phase: 'plain' }],
-    ['lit, locked', { active: true }, { draft: '做个网站', phase: 'sending' }],
-  ];
-  for (const [label, projection, input] of cases) {
-    const tree = expand(dock({
-      translate,
-      useProjection: (key) => (key === 'shenDeng' ? projection : undefined),
-      useInput: (select) => (select ? select(input) : input),
-      execute: async () => null,
-      rewrite: async () => ({ ok: true, text: 'next', gaps: [] }),
-      setDraft: () => {},
-    }));
-    const row = collect(tree, (n) => n.props.className === 'sd-row')[0];
-    assert.ok(row, `the row renders (\${label})`);
-    const classes = row.children.filter((c) => c && typeof c === 'object').map((c) => c.props.className);
-    assert.equal(classes[0], 'sd-lampbtn');
-    assert.equal(classes[1], 'sd-text-btn');
+  const base = {
+    translate,
+    useProjection: () => ({ active: true }),
+    useInput: (select) => (select ? select({ draft: '做个网站', phase: 'plain' }) : { draft: '做个网站', phase: 'plain' }),
+    inputActions: { setDraft: () => {} },
+    execute: async () => null,
+    rewrite: async () => ({ ok: true, text: 'next', gaps: [] }),
+  };
+  const tree = expand(dock(base));
+  const buttons = collect(tree, (n) => n.type === 'button');
+  assert.equal(buttons.length, 1, 'one control, no label text beside it');
+  assert.ok(String(buttons[0].props.className).includes('sd-lampbtn'));
+  // No secondary text: the row holds one button and nothing beside it.
+  const row = collect(tree, (n) => n.props?.className === 'sd-row')[0];
+  const children = (row.children || []).filter((c) => c && typeof c === 'object');
+  assert.equal(children.length, 1, 'the row has a single child');
+  assert.equal(children[0].type, 'button');
+  // And no text-bearing spans survived the simplification.
+  for (const dead of ['sd-title', 'sd-sub', 'sd-stats', 'sd-dot']) {
+    assert.equal(collect(tree, (n) => n.props?.className === dead).length, 0, `${dead} is gone`);
   }
+});
+
+test('the dock disables itself when the composer cannot take a draft', () => {
+  const { views } = mountClient();
+  const dock = views['conversation.composer.dock#shen-deng-console'];
+  const render = (inputActions, input) => expand(dock({
+    translate,
+    useProjection: () => ({ active: true }),
+    useInput: (select) => (select ? select(input) : input),
+    inputActions,
+    execute: async () => null,
+    rewrite: async () => ({ ok: true, text: 'next', gaps: [] }),
+  }));
+  const noActions = collect(render(undefined, { draft: 'x', phase: 'plain' }), (n) => n.type === 'button')[0];
+  assert.equal(noActions.props.disabled, true, 'no setDraft means no action');
+  const empty = collect(render({ setDraft: () => {} }, { draft: '', phase: 'plain' }), (n) => n.type === 'button')[0];
+  assert.equal(empty.props.disabled, true, 'empty draft means no action');
+  const locked = collect(render({ setDraft: () => {} }, { draft: 'x', phase: 'sending' }), (n) => n.type === 'button')[0];
+  assert.equal(locked.props.disabled, true, 'a sending composer means no action');
 });
 
 test('the settings page renders its rows and the template chips', () => {

@@ -649,13 +649,38 @@ const REWRITE_SYSTEM = [
   '4. 不要写成邮件、不要寒暄、不要解释你在做什么。只输出改写后的指令本身。',
   '5. 保持用户的语言（中文草稿输出中文）。',
   '6. 长度控制在原草稿的 3 倍以内。宁可短而准，不要长而空。',
+  '7. 如果给了工作区信息，就用它来把模糊的指代替换成本名：用户说“那个插件”“这个项目”时，指出具体是哪个目录；用户没说落点时，给出工作区里已有、且最像的两个候选；用户提到文件时，用真实存在的文件名。工作区里没有的，不要编造。',
 ].join('\n');
 
+/**
+ * A compact, factual view of the workspace for the rewrite.
+ *
+ * This is what makes the difference between "（落点待定）" and "落在 alpha/
+ * 目录". It stays small on purpose: a rewrite is a cheap operation and must not
+ * drag a whole tree through the model.
+ */
+function workspaceContext(scan) {
+  if (scan === null || scan === undefined || scan.read === false) return '';
+  const lines = [`工作区：${scan.root}`];
+  if (scan.topLevel.length > 0) lines.push(`顶层条目：${scan.topLevel.slice(0, 20).join('、')}`);
+  if (scan.manifests.length > 0) {
+    const kinds = [...new Set(scan.manifests.map((m) => m.kind))];
+    lines.push(`项目类型：${kinds.join('、')}`);
+    lines.push(`清单文件：${scan.manifests.slice(0, 6).map((m) => m.path).join('、')}`);
+  }
+  if (scan.extensions.length > 0) {
+    lines.push(`文件构成：${scan.extensions.slice(0, 5).map((e) => `${e.ext}×${e.count}`).join('，')}`);
+  }
+  if (scan.tree.length > 0) lines.push(`目录树：\n${scan.tree.slice(0, 30).join('\n')}`);
+  return lines.join('\n');
+}
+
 /** Assemble one rewrite request. */
-function rewriteMessages(draft) {
+function rewriteMessages(draft, context) {
+  const body = context === '' ? draft : `${context}\n\n---\n\n用户草稿：\n${draft}`;
   return [
     { role: 'system', content: [{ type: 'text', text: REWRITE_SYSTEM }] },
-    { role: 'user', content: [{ type: 'text', text: draft }] },
+    { role: 'user', content: [{ type: 'text', text: body }] },
   ];
 }
 
@@ -691,7 +716,7 @@ export function unwrapRewrite(text) {
  * Rewrite one draft through the configured model.
  * @returns `{ ok: true, text }` or `{ ok: false, reason }`.
  */
-async function rewriteDraft(ctx, draft) {
+async function rewriteDraft(ctx, draft, context = '') {
   const llm = ctx.get('llm');
   if (llm === undefined || typeof llm.stream !== 'function') {
     return { ok: false, reason: 'no-llm' };
@@ -707,7 +732,7 @@ async function rewriteDraft(ctx, draft) {
     const text = await collectStream(llm.stream({
       provider: selection.provider,
       model: selection.model,
-      messages: rewriteMessages(draft),
+      messages: rewriteMessages(draft, context),
     }));
     const cleaned = unwrapRewrite(text);
     if (cleaned === '') return { ok: false, reason: 'empty' };
@@ -727,11 +752,31 @@ async function rewriteDraft(ctx, draft) {
 const REWRITE_MARK = '\u0000LAMP-REWRITE\u0000';
 
 /**
+ * Scan the owning Session's workspace for grounding a rewrite.
+ *
+ * Bounded and failure-tolerant: a rewrite without workspace context is still
+ * useful, so a scan error degrades to the empty string rather than failing the
+ * button.
+ */
+async function rewriteWorkspaceContext(ctx, agent) {
+  try {
+    if (agent === undefined || agent.session === undefined) return '';
+    const root = ctx.workingDirectory.get(agent.session);
+    const target = await ctx.fs.resolve(root);
+    const scan = await scanWorkspace(ctx, normalizeScanOptions({ depth: 2, max_tree_lines: 24 }), target);
+    return workspaceContext(scan);
+  } catch {
+    return '';
+  }
+}
+
+/**
  * Run a rewrite on behalf of `/lamp rewrite` and fold the outcome into the
  * one text field a command may return.
  */
-async function rewriteForCommand(ctx, draft) {
-  const result = await rewriteDraft(ctx, draft);
+async function rewriteForCommand(ctx, draft, agent) {
+  const context = await rewriteWorkspaceContext(ctx, agent);
+  const result = await rewriteDraft(ctx, draft, context);
   if (!result.ok) return { kind: 'error', text: `${REWRITE_MARK}fail:${result.reason}` };
   return { kind: 'success', text: `${REWRITE_MARK}ok:${result.text}` };
 }
@@ -882,7 +927,7 @@ export async function apply(ctx, config) {
       if (/^rewrite\b/i.test(input)) {
         const draft = input.slice('rewrite'.length).trim();
         if (draft === '') return { kind: 'error', text: REWRITE_MARK + 'empty-draft' };
-        return rewriteForCommand(ctx, draft);
+        return rewriteForCommand(ctx, draft, agent);
       }
       const wanted = parseLampArgs(input);
       if (wanted === null) {
@@ -1158,7 +1203,7 @@ export async function apply(ctx, config) {
       }],
       presentationMeta: (_args, value) => ({ shenDeng: { kind: 'rewrite', ok: value.ok, reason: value.reason, gaps: value.gaps } }),
     },
-    async execute(args) {
+    async execute(args, exec) {
       const draft = typeof args?.draft === 'string' ? args.draft.trim() : '';
       if (draft === '') {
         return { ok: false, text: '', gaps: [], reason: 'empty-draft' };
@@ -1167,7 +1212,8 @@ export async function apply(ctx, config) {
       // so the user knows what the rewrite had to leave open.
       const audit = auditWish(draft, null, currentTable());
       const gaps = audit.gaps.map((gap) => gap.label);
-      const result = await rewriteDraft(ctx, draft);
+      const context = await rewriteWorkspaceContext(ctx, exec?.agent);
+      const result = await rewriteDraft(ctx, draft, context);
       if (!result.ok) {
         return { ok: false, text: '', gaps, reason: result.reason };
       }

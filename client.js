@@ -855,55 +855,41 @@ window.__ModuleLoader__.load({
 
 /* one quiet row under the composer */
 .sd-composer-btn {
-  position: relative;
   display: inline-flex;
   align-items: center;
-  justify-content: center;
   flex: none;
 }
-
-/* The bubble floats above the icon, never pushes the composer around. */
-.sd-bubble {
-  position: absolute;
-  bottom: calc(100% + 6px);
-  right: 0;
-  max-width: 260px;
-  width: max-content;
-  padding: 4px 9px;
-  border-radius: 8px;
-  border: 1px solid var(--dsw-alias-border-l2);
-  background: var(--dsw-alias-bg-overlay);
-  color: var(--dsw-alias-label-primary);
-  font: inherit;
-  font-size: 11.5px;
-  line-height: 16px;
-  white-space: normal;
-  box-shadow: 0 2px 10px color-mix(in srgb, #000 18%, transparent);
-  pointer-events: none;
-  z-index: 2;
-}
-.sd-bubble[data-error="1"] { color: var(--dsw-alias-state-error-primary); }
 
 .sd-lampbtn {
   position: relative;
-  z-index: 1;
   display: inline-flex;
   align-items: center;
-  justify-content: center;
-  width: 22px;
+  gap: 5px;
   height: 22px;
   flex: none;
-  padding: 0;
+  padding: 0 6px 0 0;
   border: 0;
   background: none;
   cursor: pointer;
-  border-radius: 50%;
-  transition: transform 220ms cubic-bezier(.3,1.3,.5,1);
+  border-radius: 6px;
+  color: var(--dsw-alias-label-secondary);
+  font: inherit;
+  font-size: 11.5px;
+  line-height: 16px;
+  white-space: nowrap;
+  transition: color 180ms ease;
 }
+
+/* The label is part of the button: one row, no floating layer. */
+.sd-label { pointer-events: none; }
+.sd-lampbtn[data-lit="1"] { color: var(--dsw-alias-label-primary); }
+.sd-lampbtn[data-error="1"], .sd-label[data-error="1"] { color: var(--dsw-alias-state-error-primary); }
+.sd-lampbtn:disabled { cursor: default; opacity: .55; }
+
+.sd-lampbtn:focus-visible { outline: 1.5px solid rgba(196, 152, 255, 0.8); outline-offset: 2px; }
+
 .sd-lampbtn:hover:not(:disabled) { transform: translateY(-1px); }
 .sd-lampbtn:active:not(:disabled) { transform: translateY(0) scale(.94); }
-.sd-lampbtn:disabled { cursor: default; opacity: .55; }
-.sd-lampbtn:focus-visible { outline: 1.5px solid rgba(196, 152, 255, 0.8); outline-offset: 2px; }
 
 .sd-lampbtn svg.sd-lamp-svg { position: relative; display: block; }
 .sd-flame {
@@ -929,7 +915,6 @@ window.__ModuleLoader__.load({
 
 .sd-lampbtn--undo { color: var(--dsw-alias-label-secondary); }
 .sd-lampbtn--undo:hover { color: var(--dsw-alias-label-primary); }
-.sd-lampbtn[data-error="1"] { color: var(--dsw-alias-state-error-primary); }
 
 
 
@@ -1076,9 +1061,19 @@ window.__ModuleLoader__.load({
                 ? t('rwReady')
                 : t('rwNeedText');
 
-      // The bubble is shown while something is worth saying: enhancing just
-      // finished, failed, or the lamp is off. It is not a permanent label.
-      const bubble = (busy || failure !== null || note !== null || !lit) ? stateText : null;
+      // The label sits after the icon, inline: no floating layer, no layout
+      // shift beyond the width of a short word.
+      const label = busy
+        ? t('rwWorking')
+        : failure !== null
+          ? t('rwFailed')
+          : showingUndo
+            ? t('rwEnhanced')
+            : !lit
+              ? t('rwOff')
+              : hasDraft
+                ? t('rwReady')
+                : t('rwNeedText');
 
       const iconLabel = failure !== null
         ? failure
@@ -1092,14 +1087,9 @@ window.__ModuleLoader__.load({
                 ? t('rwActionTitle')
                 : t('rwNeedText');
 
+      const disabled = busy || (showingUndo ? false : (lit ? !canRun : false));
+
       return h('div', { className: 'sd-composer-btn', 'data-lit': lit ? '1' : '0' },
-        bubble !== null
-          ? h('div', {
-              className: 'sd-bubble',
-              role: 'status',
-              'data-error': failure !== null ? '1' : '0',
-            }, bubble)
-          : null,
         h('button', {
           type: 'button',
           className: 'sd-lampbtn' + (showingUndo ? ' sd-lampbtn--undo' : ''),
@@ -1108,14 +1098,16 @@ window.__ModuleLoader__.load({
           'aria-label': iconLabel,
           title: iconLabel,
           'data-error': failure !== null ? '1' : '0',
-          // Undo only needs a stored previous text; enhancing needs a writable
-          // composer, a non-empty draft, and an unlocked input.
-          disabled: busy || (showingUndo ? false : (lit ? !canRun : false)),
+          disabled,
           onClick: showingUndo ? undo : run,
         },
           showingUndo
             ? h(UndoGlyph, { size: 16 })
             : h(AladdinLamp, { size: 18, lit: lit && hasDraft }),
+          h('span', {
+            className: 'sd-label',
+            'data-error': failure !== null ? '1' : '0',
+          }, label),
         ),
       );
     }

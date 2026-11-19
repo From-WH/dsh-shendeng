@@ -639,16 +639,16 @@ export const Config = z.object({
  * user sends it without reading closely.
  */
 const REWRITE_SYSTEM = [
-  '你是一个提示词改写器。用户会给你一段他自己写的需求草稿。',
-  '你的任务：在不改变原意、不新增范围的前提下，把这段草稿改写成一个更完整、更准确的执行指令。',
+  '你是一个提示词增强器。用户会给你一段他自己写的提示词。',
+  '你的任务：在不改变原意、不新增范围的前提下，把这段提示词增强成一条更完整、更准确的执行指令。',
   '',
   '规则：',
   '1. 保留用户已经说清楚的一切，包括他指定的文件名、目录、技术栈、数字。不要删。',
   '2. 只补充用户没说、但执行时必须知道的信息：交付物是什么、落在哪里、给谁看、有什么硬约束、怎样算完成、这一版做多大。',
-  '3. 无法从草稿推断的信息，不要编造。用一句简短的话点出这个空缺，让用户自己填，例如“（篇幅待定）”。',
+  '3. 无法从提示词推断的信息，不要编造。用一句简短的话点出这个空缺，让用户自己填，例如“（篇幅待定）”。',
   '4. 不要写成邮件、不要寒暄、不要解释你在做什么。只输出改写后的指令本身。',
-  '5. 保持用户的语言（中文草稿输出中文）。',
-  '6. 长度控制在原草稿的 3 倍以内。宁可短而准，不要长而空。',
+  '5. 保持用户的语言（中文提示词输出中文）。',
+  '6. 长度控制在原提示词的 3 倍以内。宁可短而准，不要长而空。',
   '7. 如果给了工作区信息，就用它来把模糊的指代替换成本名：用户说“那个插件”“这个项目”时，指出具体是哪个目录；用户没说落点时，给出工作区里已有、且最像的两个候选；用户提到文件时，用真实存在的文件名。工作区里没有的，不要编造。',
 ].join('\n');
 
@@ -677,7 +677,7 @@ function workspaceContext(scan) {
 
 /** Assemble one rewrite request. */
 function rewriteMessages(draft, context) {
-  const body = context === '' ? draft : `${context}\n\n---\n\n用户草稿：\n${draft}`;
+  const body = context === '' ? draft : `${context}\n\n---\n\n用户提示词：\n${draft}`;
   return [
     { role: 'system', content: [{ type: 'text', text: REWRITE_SYSTEM }] },
     { role: 'user', content: [{ type: 'text', text: body }] },
@@ -707,7 +707,7 @@ export function unwrapRewrite(text) {
   let out = typeof text === 'string' ? text.trim() : '';
   const fence = /^```[a-z]*\n([\s\S]*?)\n```$/i.exec(out);
   if (fence !== null) out = fence[1].trim();
-  out = out.replace(/^(改写后|优化后|改写结果|提示词)[:：]\s*/u, '');
+  out = out.replace(/^(改写后|优化后|增强后|改写结果|优化结果|增强结果|提示词)[:：]\s*/u, '');
   if (out.length > 1 && /^["「“]/.test(out) && /["」”]$/.test(out)) out = out.slice(1, -1).trim();
   return out;
 }
@@ -931,7 +931,7 @@ export async function apply(ctx, config) {
       }
       const wanted = parseLampArgs(input);
       if (wanted === null) {
-        return { kind: 'error', text: '用法：/lamp on、/lamp off 或 /lamp rewrite <草稿>' };
+        return { kind: 'error', text: '用法：/lamp on、/lamp off 或 /lamp rewrite <提示词>' };
       }
       // The projection commits this command's outcome on `command/done`, which
       // the framework appends right after this handler returns. Reporting the

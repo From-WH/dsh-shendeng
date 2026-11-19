@@ -144,7 +144,7 @@ test('every registration is made on the right slot', () => {
   assert.deepEqual(registrations.filter((n) => n === 'tool.call.toolview').length, 2);
   assert.ok(registrations.includes('settings.section'));
   assert.ok(registrations.includes('settings.section.icon'));
-  assert.ok(registrations.includes('conversation.composer.dock'));
+  assert.ok(registrations.includes('conversation.input.right'));
 });
 
 test('the lamp command rows render in every state', () => {
@@ -189,9 +189,9 @@ test('a failed tool call reports the failure instead of a blank row', () => {
   assert.ok(texts.some((t) => t.includes('failed') || t.includes('boom')), 'the error text reaches the row');
 });
 
-test('the composer dock is a single icon that switches to undo', () => {
+test('the composer control is a single icon that switches to undo', () => {
   const { views } = mountClient();
-  const dock = views['conversation.composer.dock#shen-deng-console'];
+  const dock = views['conversation.input.right#shen-deng-console'];
   const base = {
     translate,
     useProjection: () => ({ active: true }),
@@ -205,19 +205,18 @@ test('the composer dock is a single icon that switches to undo', () => {
   assert.equal(buttons.length, 1, 'one control, no label text beside it');
   assert.ok(String(buttons[0].props.className).includes('sd-lampbtn'));
   // No secondary text: the row holds one button and nothing beside it.
-  const row = collect(tree, (n) => n.props?.className === 'sd-row')[0];
-  const children = (row.children || []).filter((c) => c && typeof c === 'object');
-  assert.equal(children.length, 1, 'the row has a single child');
-  assert.equal(children[0].type, 'button');
+  const holder = collect(tree, (n) => n.props?.className === 'sd-composer-btn')[0];
+  assert.ok(holder, 'the control sits in its own holder');
+  assert.equal(collect(holder, (n) => n.type === 'button').length, 1, 'exactly one control');
   // And no text-bearing spans survived the simplification.
   for (const dead of ['sd-title', 'sd-sub', 'sd-stats', 'sd-dot']) {
     assert.equal(collect(tree, (n) => n.props?.className === dead).length, 0, `${dead} is gone`);
   }
 });
 
-test('the dock disables itself when the composer cannot take a draft', () => {
+test('the control disables itself when the composer cannot be enhanced', () => {
   const { views } = mountClient();
-  const dock = views['conversation.composer.dock#shen-deng-console'];
+  const dock = views['conversation.input.right#shen-deng-console'];
   const render = (inputActions, input) => expand(dock({
     translate,
     useProjection: () => ({ active: true }),
@@ -264,7 +263,7 @@ test('no rendered style carries undefined or NaN', () => {
   const { views } = mountClient();
   const trees = [
     views['settings.section#shen-deng-dimensions']({ translate, form: () => ({ getSnapshot: () => ({ value: { dimensions: [] }, writable: true, revision: 0 }), subscribe: () => () => {} }), update: async () => ({ ok: true }) }),
-    views['conversation.composer.dock#shen-deng-console']({
+    views['conversation.input.right#shen-deng-console']({
       translate,
       useProjection: () => ({ active: true }),
       useInput: (select) => (select ? select({ draft: 'x', phase: 'plain' }) : { draft: 'x', phase: 'plain' }),

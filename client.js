@@ -42,32 +42,26 @@ window.__ModuleLoader__.load({
         hide: '收起',
         running: '正在读工作区…',
         failed: '神灯没有点亮',
-        switchOn: '神灯已点亮',
-        switchOff: '神灯已熄灭',
         switchOnTitle: '点击熄灭：关闭许愿体检',
         switchOffTitle: '点击点亮：需求模糊时先做许愿体检',
-        switchWorking: '正在切换…',
         switchFailed: '切换失败',
         dockTitle: '神灯',
-        rwAction: '优化提示词',
-        rwActionTitle: '把草稿补全成更准确的指令',
-        rwNeedDraft: '先输入草稿',
-        rwHint: '点击优化当前草稿',
-        rwWorking: '优化中…',
-        rwDone: '已替换输入框，可撤销',
-        rwDoneOpen: '已替换；待补：{gaps}',
-        rwUnchanged: '已经够清楚了',
-        rwFailed: '优化失败',
+        rwAction: '增强提示词',
+        rwActionTitle: '增强当前提示词',
+        rwReady: '增强提示词',
+        rwNeedText: '先输入提示词',
+        rwWorking: '增强中…',
+        rwEnhanced: '已增强',
+        rwDone: '已增强',
+        rwDoneOpen: '已增强；待补：{gaps}',
+        rwUnchanged: '已经很完整',
+        rwFailed: '增强失败',
         rwNoModel: '没有可用模型',
-        rwEmpty: '草稿为空',
+        rwEmpty: '还没有输入提示词',
         rwUndo: '撤销',
-        rwUndoTitle: '恢复优化前的文字',
+        rwUndoTitle: '恢复增强前的提示词',
         rwUndone: '已恢复',
-        rwChars: '{n} 字',
-        dockMeta: '点击点亮',
-        statsPending: '尚未体检',
-        statsChecks: '已体检 {n} 次',
-        statsGaps: '拦截 {n} 处歧义',
+        rwOff: '神灯未点亮',
         cfgIntro: '神灯会按下面的表格检查你的需求；表格行就是检查项。',
         cfgTplLabel: '一键套用场景',
         cfgTplApplied: '已套用模板，可继续微调，别忘了保存',
@@ -118,32 +112,26 @@ window.__ModuleLoader__.load({
         hide: 'Hide',
         running: 'Reading the workspace…',
         failed: 'The lamp did not light',
-        switchOn: 'Lamp lit',
-        switchOff: 'Lamp off',
         switchOnTitle: 'Click to extinguish: turn the wish check off',
         switchOffTitle: 'Click to light: check the wish when a request is vague',
-        switchWorking: 'Switching…',
         switchFailed: 'Switch failed',
         dockTitle: 'Lamp',
-        rwAction: 'Improve prompt',
-        rwActionTitle: 'Turn the draft into a precise instruction',
-        rwNeedDraft: 'Type a draft',
-        rwHint: 'Click to improve the draft',
-        rwWorking: 'Improving…',
-        rwDone: 'Replaced in the composer — undo available',
-        rwDoneOpen: 'Replaced; open: {gaps}',
-        rwUnchanged: 'Already clear',
-        rwFailed: 'Improve failed',
-        rwNoModel: 'No model',
-        rwEmpty: 'Draft is empty',
+        rwAction: 'Enhance prompt',
+        rwActionTitle: 'Enhance the current prompt',
+        rwReady: 'Enhance prompt',
+        rwNeedText: 'Type a prompt first',
+        rwWorking: 'Enhancing…',
+        rwEnhanced: 'Enhanced',
+        rwDone: 'Enhanced',
+        rwDoneOpen: 'Enhanced; still open: {gaps}',
+        rwUnchanged: 'Already complete',
+        rwFailed: 'Enhance failed',
+        rwNoModel: 'No model available',
+        rwEmpty: 'No prompt yet',
         rwUndo: 'Undo',
-        rwUndoTitle: 'Restore the previous text',
+        rwUndoTitle: 'Restore the previous prompt',
         rwUndone: 'Restored',
-        rwChars: '{n} chars',
-        dockMeta: 'click to light',
-        statsPending: 'no checks yet',
-        statsChecks: '{n} wish checks',
-        statsGaps: '{n} gaps caught',
+        rwOff: 'Lamp is off',
         cfgIntro: 'The lamp checks your wish against the rows below.',
         cfgTplLabel: 'Quick start',
         cfgTplApplied: 'Template applied — tweak if you like, then save',
@@ -866,66 +854,44 @@ window.__ModuleLoader__.load({
 }
 
 /* one quiet row under the composer */
-.sd-dock {
-  display: flex;
-  justify-content: center;
-  width: 100%;
-  padding: 3px 0 1px;
-}
-
-/* The row owns the light pool so it can span the text; the lamp only reports
-   that it is lit. One element, one falloff, no seam between lamp and text. */
-.sd-row { position: relative; }
-.sd-row::before {
-  content: "";
-  position: absolute;
-  /* Originates at the lamp and spills rightward across the text, so no light
-     is wasted off the left edge and the falloff follows reading direction. */
-  left: 13px;
-  top: 50%;
-  width: 420px;
-  height: 44px;
-  margin-top: -22px;
-  background: radial-gradient(ellipse 100% 50% at 0% 50%,
-    rgba(255, 196, 250, 0.15) 0%,
-    rgba(196, 138, 255, 0.095) 16%,
-    rgba(150, 130, 255, 0.058) 34%,
-    rgba(110, 150, 255, 0.026) 56%,
-    transparent 78%);
-  filter: blur(8px);
-  opacity: 0;
-  transform: translateX(-6px) scale(.97);
-  transition: opacity 520ms ease, transform 720ms cubic-bezier(.2,.9,.3,1);
-  pointer-events: none;
-  z-index: 0;
-}
-.sd-row[data-lit="1"]::before { opacity: 1; transform: translateX(0) scale(1); }
-
-.sd-row {
-  display: flex;
+.sd-composer-btn {
+  position: relative;
+  display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 9px;
-  width: 100%;
-  max-width: 760px;
-  min-width: 0;
-  padding: 0 3px;
-  color: var(--dsw-alias-label-secondary);
+  flex: none;
+}
+
+/* The bubble floats above the icon, never pushes the composer around. */
+.sd-bubble {
+  position: absolute;
+  bottom: calc(100% + 6px);
+  right: 0;
+  max-width: 260px;
+  width: max-content;
+  padding: 4px 9px;
+  border-radius: 8px;
+  border: 1px solid var(--dsw-alias-border-l2);
+  background: var(--dsw-alias-bg-overlay);
+  color: var(--dsw-alias-label-primary);
   font: inherit;
   font-size: 11.5px;
   line-height: 16px;
-  letter-spacing: .03em;
+  white-space: normal;
+  box-shadow: 0 2px 10px color-mix(in srgb, #000 18%, transparent);
+  pointer-events: none;
+  z-index: 2;
 }
+.sd-bubble[data-error="1"] { color: var(--dsw-alias-state-error-primary); }
 
-/* the lamp itself is the control */
 .sd-lampbtn {
   position: relative;
   z-index: 1;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 26px;
-  height: 26px;
+  width: 22px;
+  height: 22px;
   flex: none;
   padding: 0;
   border: 0;
@@ -968,7 +934,7 @@ window.__ModuleLoader__.load({
 
 
 @media (prefers-reduced-motion: reduce) {
-  .sd-dock * { animation: none !important; transition: none !important; }
+  .sd-composer-btn * { animation: none !important; transition: none !important; }
 }
 `;
 
@@ -1094,28 +1060,26 @@ window.__ModuleLoader__.load({
         setFailure(null);
       };
 
-      const label = busy
-        ? t('rwWorking')
-        : !lit
-          ? t('switchOff')
-          : hasDraft
-            ? t('rwAction')
-            : t('rwNeedDraft');
-
-      const meta = failure !== null
-        ? failure
-        : note !== null
-          ? note
-          : busy
-            ? t('rwWorking')
-            : lit
-              ? t('rwHint')
-              : t('dockMeta');
-
-      // Minimal dock: the lamp is the action, and after a rewrite the same
-      // spot offers undo. No labels, no counters, no secondary line — the
-      // result of a rewrite is visible in the composer itself.
+      // One icon beside the composer, plus a result bubble above it. The icon
+      // is the action; after an enhance it becomes undo. No standing text: the
+      // result is already in the composer.
       const showingUndo = previous !== null && !busy;
+      const stateText = busy
+        ? t('rwWorking')
+        : failure !== null
+          ? failure
+          : showingUndo
+            ? t('rwEnhanced')
+            : !lit
+              ? t('rwOff')
+              : hasDraft
+                ? t('rwReady')
+                : t('rwNeedText');
+
+      // The bubble is shown while something is worth saying: enhancing just
+      // finished, failed, or the lamp is off. It is not a permanent label.
+      const bubble = (busy || failure !== null || note !== null || !lit) ? stateText : null;
+
       const iconLabel = failure !== null
         ? failure
         : busy
@@ -1126,27 +1090,32 @@ window.__ModuleLoader__.load({
               ? t('switchOffTitle')
               : hasDraft
                 ? t('rwActionTitle')
-                : t('rwNeedDraft');
+                : t('rwNeedText');
 
-      return h('div', { className: 'sd-dock' },
-        h('div', { className: 'sd-row', 'data-lit': lit ? '1' : '0' },
-          h('button', {
-            type: 'button',
-            className: 'sd-lampbtn' + (showingUndo ? ' sd-lampbtn--undo' : ''),
-            'data-lit': lit ? '1' : '0',
-            'aria-busy': busy ? 'true' : undefined,
-            'aria-label': iconLabel,
-            title: iconLabel,
-            'data-error': failure !== null ? '1' : '0',
-            // Undo only needs a stored previous text; the rewrite needs a
-            // writable composer, a draft, and an unlocked input.
-            disabled: busy || (showingUndo ? false : (lit ? !canRun : false)),
-            onClick: showingUndo ? undo : run,
-          },
-            showingUndo
-              ? h(UndoGlyph, { size: 18 })
-              : h(AladdinLamp, { size: 22, lit: lit && hasDraft }),
-          ),
+      return h('div', { className: 'sd-composer-btn', 'data-lit': lit ? '1' : '0' },
+        bubble !== null
+          ? h('div', {
+              className: 'sd-bubble',
+              role: 'status',
+              'data-error': failure !== null ? '1' : '0',
+            }, bubble)
+          : null,
+        h('button', {
+          type: 'button',
+          className: 'sd-lampbtn' + (showingUndo ? ' sd-lampbtn--undo' : ''),
+          'data-lit': lit ? '1' : '0',
+          'aria-busy': busy ? 'true' : undefined,
+          'aria-label': iconLabel,
+          title: iconLabel,
+          'data-error': failure !== null ? '1' : '0',
+          // Undo only needs a stored previous text; enhancing needs a writable
+          // composer, a non-empty draft, and an unlocked input.
+          disabled: busy || (showingUndo ? false : (lit ? !canRun : false)),
+          onClick: showingUndo ? undo : run,
+        },
+          showingUndo
+            ? h(UndoGlyph, { size: 16 })
+            : h(AladdinLamp, { size: 18, lit: lit && hasDraft }),
         ),
       );
     }
@@ -1628,10 +1597,10 @@ window.__ModuleLoader__.load({
           id: 'shen-deng-dimensions',
         }, LampSettingsIcon));
 
-        ctx.slots.inject('conversation.composer.dock', () => ctx.slots.register({
-          name: 'conversation.composer.dock',
+        ctx.slots.inject('conversation.input.right', () => ctx.slots.register({
+          name: 'conversation.input.right',
           id: 'shen-deng-console',
-          order: 20,
+          order: 5,
           label: labelThunk(localeSvc),
           inject: (sessionId) => ({
             translate: makeTranslator(localeSvc),

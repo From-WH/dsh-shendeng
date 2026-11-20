@@ -254,25 +254,48 @@ test('an empty or replaced composer never offers undo', () => {
   }
 });
 
-test('the settings page renders its rows and the template chips', () => {
+test('the settings page offers three strength levels', () => {
   const { views } = mountClient();
-  const page = views['settings.section#shen-deng-dimensions'];
+  const page = views['settings.section#shen-deng-level'];
+  assert.ok(page, 'the section is registered under its new id');
   const tree = expand(page({
     translate,
-    form: () => ({ getSnapshot: () => ({ value: { dimensions: [{ id: 'tone', label: '调性', match: ['幽默'], ask: '?', suggest: '默认。' }] }, writable: true, revision: 1 }), subscribe: () => () => {} }),
+    form: () => ({
+      getSnapshot: () => ({ value: { level: 'medium' }, writable: true, revision: 4 }),
+      subscribe: () => () => {},
+    }),
     update: async () => ({ ok: true }),
   }));
-  const inputs = collect(tree, (n) => n.type === 'input');
-  assert.equal(inputs.length, 5, 'one row fills five inputs');
-  // The page shows the label first, then the id, then the three text fields.
-  assert.deepEqual(inputs.map((i) => i.props.value), ['tone', '调性', '幽默', '?', '默认。']);
-  const labels = collect(tree, (n) => n.type === 'button').map((b) => b.children[0]);
-  assert.ok(labels.length >= 5, 'template chips and actions are present');
+  const options = collect(tree, (n) => n.props.role === 'radio');
+  assert.equal(options.length, 3, 'low, medium, high');
+  assert.deepEqual(options.map((o) => o.props['aria-checked']), [false, true, false],
+    'medium is selected by default');
+  // The old dimension editor must be gone entirely.
+  assert.equal(collect(tree, (n) => n.type === 'input').length, 0, 'no dimension inputs remain');
+});
+
+test('picking a level writes only that field', async () => {
+  const { views } = mountClient();
+  const page = views['settings.section#shen-deng-level'];
+  const writes = [];
+  const tree = expand(page({
+    translate,
+    form: () => ({
+      getSnapshot: () => ({ value: { level: 'low' }, writable: true, revision: 7 }),
+      subscribe: () => () => {},
+    }),
+    update: async (patch, revision) => { writes.push([patch, revision]); return { ok: true }; },
+  }));
+  const options = collect(tree, (n) => n.props.role === 'radio');
+  const high = options[2];
+  high.props.onClick();
+  await new Promise((resolve) => setTimeout(resolve, 10));
+  assert.deepEqual(writes, [[{ level: 'high' }, 7]], 'a minimal patch with the current revision');
 });
 
 test('the settings icon is registered under the section id and renders', () => {
   const { views } = mountClient();
-  const icon = views['settings.section.icon#shen-deng-dimensions'];
+  const icon = views['settings.section.icon#shen-deng-level'];
   assert.ok(icon, 'the nav row gets its own glyph, not the generic Settings one');
   for (const props of [{ size: 16, active: true }, { size: 16, active: false }, {}]) {
     const tree = expand(icon(props));
@@ -283,7 +306,11 @@ test('the settings icon is registered under the section id and renders', () => {
 test('no rendered style carries undefined or NaN', () => {
   const { views } = mountClient();
   const trees = [
-    views['settings.section#shen-deng-dimensions']({ translate, form: () => ({ getSnapshot: () => ({ value: { dimensions: [] }, writable: true, revision: 0 }), subscribe: () => () => {} }), update: async () => ({ ok: true }) }),
+    views['settings.section#shen-deng-level']({
+      translate,
+      form: () => ({ getSnapshot: () => ({ value: { level: 'low' }, writable: true, revision: 0 }), subscribe: () => () => {} }),
+      update: async () => ({ ok: true }),
+    }),
     views['conversation.input.right#shen-deng-console']({
       translate,
       useProjection: () => ({ active: true }),
@@ -292,7 +319,7 @@ test('no rendered style carries undefined or NaN', () => {
       rewrite: async () => ({ ok: true, text: 'y', gaps: [] }),
       setDraft: () => {},
     }),
-    views['settings.section.icon#shen-deng-dimensions']({ size: 16, active: true }),
+    views['settings.section.icon#shen-deng-level']({ size: 16, active: true }),
   ];
   const bad = [];
   for (const tree of trees) {

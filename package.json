@@ -1,6 +1,6 @@
 {
   "name": "dsh-shendeng",
-  "version": "0.1.2",
+  "version": "0.1.3",
   "type": "module",
   "description": "神灯：在输入框旁把提示词增强成更完整、更准确的执行指令。",
   "exports": {

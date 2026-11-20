@@ -104,6 +104,10 @@ export function makeHost(overrides = {}) {
       readText: async () => '',
     },
     workingDirectory: { get: () => SANDBOX },
+    // Optional services (llm, agentDefaultModel) are read through ctx.get. The
+    // default returns undefined so a test that does not stub them exercises the
+    // degraded path.
+    get: () => undefined,
     ...overrides,
   };
 

@@ -613,15 +613,38 @@ function renderRefineText(result) {
  * reference and re-reads it on every prompt check, so no restart is needed.
  */
 export const Config = z.object({
-  dimensions: z.array(z.object({
-    id: z.string().required().description('唯一标识，同名去重'),
-    label: z.string().description('显示名；缺省用 id'),
-    match: z.array(z.string()).required().description('短语列表；/…/ 形式按正则处理'),
-    ask: z.string().description('向用户提出的问题'),
-    suggest: z.string().description('模型可直接采用的默认'),
-    resolve: z.string().description("写 'targets' 启用工作区指代识别"),
-  })).volatile().description('体检维度表；整体替换内置六维'),
+  level: z.union(['low', 'medium', 'high']).default('medium')
+    .description('增强强度：low 只补最必要的、medium 补齐常用信息、high 逐项写全并列出待确认项'),
 });
+
+/**
+ * How much the enhancer is allowed to add.
+ *
+ * The three levels differ in what they are willing to infer, not in tone: a low
+ * enhance must stay almost as short as the original, while a high one writes
+ * out every dimension and names the gaps it could not fill.
+ */
+const LEVELS = {
+  low: {
+    label: '低',
+    rule: '只补一处最关键的信息（通常是交付物或落点）。如果原提示词已经能执行，就保持原样，不要扩写。输出长度不超过原提示词的 1.5 倍。',
+  },
+  medium: {
+    label: '中',
+    rule: '补齐执行时会卡住的常用信息：交付物、落点、验收标准。其余项能推断就写一句，不能推断就略过。输出长度不超过原提示词的 3 倍。',
+  },
+  high: {
+    label: '高',
+    rule: '逐项写全六个维度，并明确列出你无法从原提示词和工作区推断的部分，用「（待确认）」标出。输出长度不超过原提示词的 4 倍。',
+  },
+};
+
+/** Normalize a configured level, falling back to the default. */
+function resolveLevel(raw) {
+  const value = raw !== null && raw !== undefined && typeof raw.get === 'function' ? raw.get() : raw;
+  return typeof value === 'string' && Object.prototype.hasOwnProperty.call(LEVELS, value) ? value : 'medium';
+}
+
 /* ------------------------------------------------------------------ *
  * Prompt rewrite
  * ------------------------------------------------------------------ */
@@ -638,15 +661,30 @@ const REWRITE_SYSTEM = [
   '你是一个提示词增强器。用户会给你一段他自己写的提示词。',
   '你的任务：在不改变原意、不新增范围的前提下，把这段提示词增强成一条更完整、更准确的执行指令。',
   '',
-  '规则：',
+  '必须遵守的规则：',
   '1. 保留用户已经说清楚的一切，包括他指定的文件名、目录、技术栈、数字。不要删。',
   '2. 只补充用户没说、但执行时必须知道的信息：交付物是什么、落在哪里、给谁看、有什么硬约束、怎样算完成、这一版做多大。',
   '3. 无法从提示词推断的信息，不要编造。用一句简短的话点出这个空缺，让用户自己填，例如“（篇幅待定）”。',
-  '4. 不要写成邮件、不要寒暄、不要解释你在做什么。只输出改写后的指令本身。',
+  '4. 不要写成邮件、不要寒暄、不要解释你在做什么。只输出增强后的指令本身。',
   '5. 保持用户的语言（中文提示词输出中文）。',
-  '6. 长度控制在原提示词的 3 倍以内。宁可短而准，不要长而空。',
-  '7. 如果给了工作区信息，就用它来把模糊的指代替换成本名：用户说“那个插件”“这个项目”时，指出具体是哪个目录；用户没说落点时，给出工作区里已有、且最像的两个候选；用户提到文件时，用真实存在的文件名。工作区里没有的，不要编造。',
+  '6. 如果给了工作区信息，就用它来把模糊的指代替换成本名：用户说“那个插件”“这个项目”时，指出具体是哪个目录；用户没说落点时，给出工作区里已有、且最像的两个候选；用户提到文件时，用真实存在的文件名。工作区里没有的，不要编造。',
 ].join('\n');
+
+/**
+ * Compose the system prompt for one level.
+ *
+ * The level is appended as a numbered rule so it competes on equal footing with
+ * the invariants above; putting it in a separate paragraph made models treat it
+ * as optional background.
+ */
+function rewriteSystem(level) {
+  const entry = LEVELS[level] || LEVELS.medium;
+  return [
+    REWRITE_SYSTEM,
+    '',
+    `7. 本次增强强度为「${entry.label}」：${entry.rule}`,
+  ].join('\n');
+}
 
 /**
  * A compact, factual view of the workspace for the rewrite.
@@ -672,10 +710,10 @@ function workspaceContext(scan) {
 }
 
 /** Assemble one rewrite request. */
-function rewriteMessages(draft, context) {
+function rewriteMessages(draft, context, level) {
   const body = context === '' ? draft : `${context}\n\n---\n\n用户提示词：\n${draft}`;
   return [
-    { role: 'system', content: [{ type: 'text', text: REWRITE_SYSTEM }] },
+    { role: 'system', content: [{ type: 'text', text: rewriteSystem(level) }] },
     { role: 'user', content: [{ type: 'text', text: body }] },
   ];
 }
@@ -712,7 +750,7 @@ export function unwrapRewrite(text) {
  * Rewrite one draft through the configured model.
  * @returns `{ ok: true, text }` or `{ ok: false, reason }`.
  */
-async function rewriteDraft(ctx, draft, context = '') {
+async function rewriteDraft(ctx, draft, context = '', level = 'medium') {
   const llm = ctx.get('llm');
   if (llm === undefined || typeof llm.stream !== 'function') {
     return { ok: false, reason: 'no-llm' };
@@ -728,7 +766,7 @@ async function rewriteDraft(ctx, draft, context = '') {
     const text = await collectStream(llm.stream({
       provider: selection.provider,
       model: selection.model,
-      messages: rewriteMessages(draft, context),
+      messages: rewriteMessages(draft, context, level),
     }));
     const cleaned = unwrapRewrite(text);
     if (cleaned === '') return { ok: false, reason: 'empty' };
@@ -770,9 +808,9 @@ async function rewriteWorkspaceContext(ctx, agent) {
  * Run a rewrite on behalf of `/lamp rewrite` and fold the outcome into the
  * one text field a command may return.
  */
-async function rewriteForCommand(ctx, draft, agent) {
+async function rewriteForCommand(ctx, draft, agent, level = 'medium') {
   const context = await rewriteWorkspaceContext(ctx, agent);
-  const result = await rewriteDraft(ctx, draft, context);
+  const result = await rewriteDraft(ctx, draft, context, level);
   if (!result.ok) return { kind: 'error', text: `${REWRITE_MARK}fail:${result.reason}` };
   return { kind: 'success', text: `${REWRITE_MARK}ok:${result.text}` };
 }
@@ -898,13 +936,11 @@ export async function apply(ctx, config) {
   // dimensions is volatile: the field arrives as a live reference when the
   // Settings service is mounted (plain value otherwise). Read it per wish
   // check so GUI edits apply without a restart.
-  const dimsRef = config?.dimensions;
-  const currentTable = () => {
-    const raw = dimsRef !== undefined && dimsRef !== null && typeof dimsRef.get === 'function'
-      ? dimsRef.get()
-      : dimsRef;
-    return resolveDimensions(raw);
-  };
+  // level is volatile for the same reason the old dimension table was: the
+  // Settings form hands over a live reference, so an edit applies to the next
+  // enhance without a restart.
+  const levelRef = config?.level;
+  const currentLevel = () => resolveLevel(levelRef);
 
   // Awaiting registration makes `stateOf` a synchronous read for every caller
   // below; a later projection change reaches the client, never this closure.
@@ -928,7 +964,7 @@ export async function apply(ctx, config) {
       if (/^rewrite\b/i.test(input)) {
         const draft = input.slice('rewrite'.length).trim();
         if (draft === '') return { kind: 'error', text: REWRITE_MARK + 'empty-draft' };
-        return rewriteForCommand(ctx, draft, agent);
+        return rewriteForCommand(ctx, draft, agent, currentLevel());
       }
       const wanted = parseLampArgs(input);
       if (wanted === null) {
@@ -1147,7 +1183,7 @@ export async function apply(ctx, config) {
       }
       const emptyScan = { read: false, root: '', files: 0, directories: 0, topLevel: [], extensions: [], manifests: [], tree: [], truncated: false };
       const effectiveScan = scan ?? emptyScan;
-      const audit = auditWish(wish, scan, currentTable());
+      const audit = auditWish(wish, scan, BUILT_IN);
       return {
         score: audit.score,
         total: audit.total,
@@ -1156,7 +1192,7 @@ export async function apply(ctx, config) {
         targets: audit.targets,
         gaps: audit.gaps,
         vague: audit.vague,
-        brief: buildBrief(wish, audit, effectiveScan, currentTable()),
+        brief: buildBrief(wish, audit, effectiveScan, BUILT_IN),
         facts: scanFacts(effectiveScan),
       };
     },
@@ -1181,6 +1217,11 @@ export async function apply(ctx, config) {
         prompt: {
           type: 'string',
           description: 'The prompt to enhance, verbatim as the user wrote it.',
+        },
+        level: {
+          type: 'string',
+          enum: ['low', 'medium', 'high'],
+          description: 'How much to add. Defaults to the user configured level.',
         },
       },
     },
@@ -1211,10 +1252,11 @@ export async function apply(ctx, config) {
       }
       // What the six dimensions would still ask; the UI shows this as a hint
       // so the user knows what the rewrite had to leave open.
-      const audit = auditWish(draft, null, currentTable());
+      const audit = auditWish(draft, null, BUILT_IN);
       const gaps = audit.gaps.map((gap) => gap.label);
       const context = await rewriteWorkspaceContext(ctx, exec?.agent);
-      const result = await rewriteDraft(ctx, draft, context);
+      const level = resolveLevel(args?.level !== undefined ? args.level : currentLevel());
+      const result = await rewriteDraft(ctx, draft, context, level);
       if (!result.ok) {
         return { ok: false, text: '', gaps, reason: result.reason };
       }

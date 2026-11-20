@@ -62,11 +62,15 @@ window.__ModuleLoader__.load({
         rwUndoTitle: '恢复增强前的提示词',
         rwUndone: '已恢复',
         rwOff: '神灯未点亮',
-        cfgIntro: '增强时会按下面的表格逐项补全；每一行就是一条检查项。',
-        cfgTplLabel: '一键套用场景',
-        cfgTplApplied: '已套用模板，可继续微调，别忘了保存',
+        cfgIntro: '决定点神灯时，它给你补多少内容。',
+        cfgLevelLabel: '增强强度',
+        lvlLow: '低',
+        lvlLowHint: '只补最关键的一点，尽量不动原文',
+        lvlMedium: '中',
+        lvlMediumHint: '补齐交付物、落点与验收，其余按需',
+        lvlHigh: '高',
+        lvlHighHint: '六个维度逐项写全，并标出待确认项',
         cfgReadonly: '当前环境只读，无法保存。',
-        cfgAdd: '自己加一条',
         tplReport: '汇报',
         tplTranslate: '翻译',
         tplCode: '写代码',
@@ -132,11 +136,15 @@ window.__ModuleLoader__.load({
         rwUndoTitle: 'Restore the previous prompt',
         rwUndone: 'Restored',
         rwOff: 'Lamp is off',
-        cfgIntro: 'Enhancing fills in the rows below, one check each.',
-        cfgTplLabel: 'Quick start',
-        cfgTplApplied: 'Template applied — tweak if you like, then save',
+        cfgIntro: 'How much the lamp adds when you press it.',
+        cfgLevelLabel: 'Enhancement strength',
+        lvlLow: 'Low',
+        lvlLowHint: 'Add the one thing that matters, keep the rest as written',
+        lvlMedium: 'Medium',
+        lvlMediumHint: 'Fill in deliverable, destination, and acceptance',
+        lvlHigh: 'High',
+        lvlHighHint: 'Write out all six dimensions and flag what needs confirming',
         cfgReadonly: 'Read-only environment; saving is disabled.',
-        cfgAdd: 'Add one',
         tplReport: 'Reporting',
         tplTranslate: 'Translation',
         tplCode: 'Coding',
@@ -854,6 +862,57 @@ window.__ModuleLoader__.load({
 }
 
 /* one quiet row under the composer */
+.sd-cfg {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  color: var(--dsw-alias-label-primary);
+  font: inherit;
+  font-size: 12.5px;
+}
+.sd-cfg-intro {
+  margin: 0;
+  color: var(--dsw-alias-label-secondary);
+  line-height: 18px;
+}
+.sd-cfg-levels {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.sd-cfg-level {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  align-items: flex-start;
+  text-align: left;
+  padding: 9px 32px 9px 12px;
+  border: 1px solid var(--dsw-alias-border-l2);
+  border-radius: 8px;
+  background: var(--dsw-alias-bg-layer-1);
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+  transition: border-color 140ms ease, background 140ms ease;
+}
+.sd-cfg-level:hover:not(:disabled) { border-color: var(--dsw-alias-border-l3); }
+.sd-cfg-level--on {
+  border-color: rgba(176, 130, 240, 0.75);
+  background: color-mix(in srgb, rgba(176, 130, 240, 0.14) 100%, transparent);
+}
+.sd-cfg-level:disabled { cursor: default; opacity: .6; }
+.sd-cfg-level-name { font-weight: 500; line-height: 18px; }
+.sd-cfg-level-hint { color: var(--dsw-alias-label-secondary); font-size: 11.5px; line-height: 16px; }
+.sd-cfg-level-mark {
+  position: absolute;
+  right: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: rgba(176, 130, 240, 1);
+}
+.sd-cfg-error { margin: 0; color: var(--dsw-alias-state-error-primary); font-size: 11.5px; }
+
 .sd-composer-btn {
   display: inline-flex;
   align-items: center;
@@ -1150,53 +1209,6 @@ window.__ModuleLoader__.load({
       );
     }
 
-    /** The lamp's built-in six, so "restore defaults" can refill the form. */
-    const BUILT_IN_TEMPLATE = [
-      { id: 'artifact', label: '交付物', match: ['网站','网页','页面','插件','脚本','程序','文档','报告','文章','文案','邮件','周报','翻译','图片','表格','函数','接口','.js','.md','.py','.html'], ask: '最终要拿到什么？一个文件、一个能跑的程序，还是一段文字？', suggest: '先定一个可打开、可运行的产物，而不是“一套方案”。' },
-      { id: 'destination', label: '落点', match: ['放到','保存到','目录','路径','现有','已有','改进','接进','发出去','发到'], ask: '它应该落在哪里？新建文件、改进现有文件，还是只给结论？', suggest: '默认在当前工作区新建一个独立目录，不覆盖已有文件。' },
-      { id: 'audience', label: '受众与语气', match: ['面向','写给','读者','老板','客户','同事','团队','正式','简洁','口语'], ask: '这是给谁看的？决定用词深度、长度和语气。', suggest: '默认按“聪明但不懂这个领域的人”来写，少术语、多例子。' },
-      { id: 'constraints', label: '硬约束', match: ['必须','不要','只能','不能','字数','字以内','无依赖','离线','不加','/\\d+\\s*字/'], ask: '有什么不能动的前提？技术栈、字数、必须复用的东西。', suggest: '默认不加新依赖，复用工作区已有的工具链。' },
-      { id: 'acceptance', label: '验收标准', match: ['验收','能跑','跑通','通过','即可','就算完成','就能用','测试通过','npm test','must pass'], ask: '怎样算做完了？一条能当场验证的判据最有用。', suggest: '默认以“打开就能看到结果 / 跑通一次真实输入”为验收。' },
-      { id: 'scope', label: '范围', match: ['第一版','mvp','先做','只做','只改','只写','最小','全部','整个','only that','first version'], ask: '这一版做到哪算够？全量还是先要一个最小可用版本。', suggest: '默认先交一个能端到端跑通的最小版本，再逐步加。' },
-    ];
-
-    const DIMENSION_TEMPLATES = [
-      { key: 'tplDefault', dims: null },
-      { key: 'tplWriting', dims: [
-        { id: 'genre',    label: '文体',   match: ['文章','文案','公众号','小红书','知乎','报告','邮件','周报','简历'], ask: '这是什么文体？不同文体的结构和语气完全不同。', suggest: '默认按通用的说明文处理，先列结构再填内容。' },
-        { id: 'audience', label: '读者',   match: ['读者','老板','客户','同事','粉丝','面试'], ask: '写给谁看？决定用词深度和称呼。', suggest: '默认写给“聪明但不懂这个领域的人”。' },
-        { id: 'length',   label: '篇幅',   match: ['字以内','字以上','字左右','字数','简短','详细','长文','短文','/\\d+\\s*字/'], ask: '大概多少字？', suggest: '默认 800 字以内。' },
-        { id: 'tone',     label: '调性',   match: ['幽默','正式','温暖','专业','口语'], ask: '要什么调性？', suggest: '默认克制、少形容词。' },
-        { id: 'done',     label: '验收',   match: ['通过','满意','发布','能用'], ask: '怎样算合格？', suggest: '默认：结构和观点完整，可直接发布。' },
-      ]},
-      { key: 'tplCode', dims: [
-        { id: 'stack',    label: '技术栈', match: ['react','vue','python','node','go','rust','java','脚本','插件'], ask: '用什么技术栈？优先复用工作区已有的。', suggest: '默认不加新依赖，复用现有工具链。' },
-        { id: 'target',   label: '落点',   match: ['新建','重构','修复','重构'], ask: '新建还是改现有代码？改哪个文件或目录？', suggest: '默认改现有文件，不动其他部分。' },
-        { id: 'done',     label: '验收',   match: ['测试通过','跑测试','跑通','通过','编译','不报错','npm test'], ask: '怎样算完成？一条能当场验证的判据最有用。', suggest: '默认：语法检查通过 + 跑通一次真实输入。' },
-        { id: 'range',    label: '范围',   match: ['只做','只改','只写','先做','第一版','全部','mvp','最小'], ask: '这一版做多大？', suggest: '默认最小可用版本，端到端跑通后再加。' },
-      ]},
-      { key: 'tplTranslate', dims: [
-        { id: 'lang',     label: '语言',   match: ['英文','中文','日语','翻译','localize'], ask: '翻译成什么语言？', suggest: '默认中文。' },
-        { id: 'tone',     label: '语气',   match: ['口语','书面','正式','邮件','论文'], ask: '原文是什么语气？译文保持一致。', suggest: '默认保持原文语气。' },
-        { id: 'term',     label: '术语',   match: ['术语','专有名词','保留'], ask: '有要保留原文的术语吗？', suggest: '默认专有名词保留原文并附中文。' },
-        { id: 'done',     label: '验收',   match: ['对照','准确','通顺'], ask: '怎样算合格？', suggest: '默认：语义准确、译文通顺、术语一致。' },
-      ]},
-      { key: 'tplReport', dims: [
-        { id: 'audience', label: '汇报对象', match: ['老板','客户','团队','汇报','上级'], ask: '汇报给谁？决定详略和措辞。', suggest: '默认写给“关心结论胜过过程的人”。' },
-        { id: 'shape',    label: '结构',   match: ['结论先行','列表','表格','摘要'], ask: '要什么结构？', suggest: '默认结论先行，三条要点支撑。' },
-        { id: 'length',   label: '篇幅',   match: ['一页','字以内','字数','简短','详细','/\\d+\\s*字/'], ask: '多长合适？', suggest: '默认一屏以内。' },
-        { id: 'done',     label: '验收',   match: ['发出','通过','满意'], ask: '怎样算合格？', suggest: '默认：结论明确，数字有出处。' },
-      ]},
-    ];
-
-    /**
-     * Nav icon for the lamp's settings section.
-     *
-     * `settings.section.icon` receives `{ size, active }` and falls back to the
-     * generic Settings glyph when the section registers none — which is why a
-     * missing registration made two rows look identical. This is the lamp
-     * itself with three check ticks, echoing the prompt checks.
-     */
     function LampSettingsIcon(props) {
       const size = props.size || 16;
       const active = props.active === true;
@@ -1234,12 +1246,14 @@ window.__ModuleLoader__.load({
       );
     }
 
+
     /**
-     * Settings page for the dimension table.
+     * Settings page: how hard the enhancer works.
      *
-     * Reads the volatile `dimensions` field through the shared config-form
-     * store and writes the whole list through `settings.update`, which
-     * persists into the profile patch and applies in place (no restart).
+     * The page used to expose a six-dimension table. That table is now internal
+     * (it backs `lamp_refine` for the model), and what a user actually wants to
+     * decide is how much the button adds to their prompt — one choice, three
+     * levels.
      */
     function LampSettingsPage(props) {
       const t = props.translate();
@@ -1250,186 +1264,62 @@ window.__ModuleLoader__.load({
         : function () { return function () {}; };
       const snapshot = React.useSyncExternalStore(subscribe, readSnapshot);
 
-      const seed = function () {
-        const dims = snapshot && snapshot.value && Array.isArray(snapshot.value.dimensions)
-          ? snapshot.value.dimensions
-          : [];
-        return dims.map(function (d) {
-          return {
-            id: String(d.id ?? ''),
-            label: String(d.label ?? ''),
-            match: Array.isArray(d.match) ? d.match.join(', ') : String(d.match ?? ''),
-            ask: String(d.ask ?? ''),
-            suggest: String(d.suggest ?? ''),
-          };
-        });
+      const current = (function () {
+        const value = snapshot && snapshot.value ? snapshot.value.level : undefined;
+        return value === 'low' || value === 'high' ? value : 'medium';
+      })();
+      const writable = !(snapshot && snapshot.writable === false);
+      const revision = snapshot && typeof snapshot.revision === 'number' ? snapshot.revision : undefined;
+
+      const [saving, setSaving] = React.useState(false);
+      const [failure, setFailure] = React.useState(null);
+
+      const choose = function (level) {
+        if (!writable || saving || level === current) return;
+        setSaving(true);
+        setFailure(null);
+        Promise.resolve(props.update({ level }, revision)).then(
+          function () { setSaving(false); },
+          function (error) {
+            setSaving(false);
+            setFailure(error instanceof Error ? error.message : String(error));
+          },
+        );
       };
 
-      const [rows, setRows] = React.useState(seed);
-      const [status, setStatus] = React.useState(null);
-      const [dirty, setDirty] = React.useState(false);
+      const LEVEL_COPY = [
+        { key: 'low', label: t('lvlLow'), hint: t('lvlLowHint') },
+        { key: 'medium', label: t('lvlMedium'), hint: t('lvlMediumHint') },
+        { key: 'high', label: t('lvlHigh'), hint: t('lvlHighHint') },
+      ];
 
-      const edit = function (index, key, value) {
-        setDirty(true);
-        setRows(function (list) {
-          const next = list.slice();
-          next[index] = { ...next[index], [key]: value };
-          return next;
-        });
-      };
-      const add = function () {
-        setDirty(true);
-        setRows(function (list) { return [...list, { id: '', label: '', match: '', ask: '', suggest: '' }]; });
-      };
-      /** Fill the table from a scenario template; null means "restore built-ins". */
-      const applyTemplate = function (tpl) {
-        setDirty(true);
-        setStatus(t('cfgTplApplied'));
-        const source = tpl.dims === null ? BUILT_IN_TEMPLATE : tpl.dims;
-        setRows(source.map(function (d) {
-          return {
-            id: d.id,
-            label: d.label,
-            match: d.match.join(', '),
-            ask: d.ask,
-            suggest: d.suggest,
-          };
-        }));
-      };
-      const remove = function (index) {
-        setDirty(true);
-        setRows(function (list) { return list.filter(function (_, i) { return i !== index; }); });
-      };
-      const revert = function () { setRows(seed); setDirty(false); setStatus(null); };
+      return h('div', { className: 'sd-cfg' },
+        h('p', { className: 'sd-cfg-intro' },
+          writable ? t('cfgIntro') : t('cfgReadonly')),
 
-      const save = async function () {
-        setStatus('saving');
-        const dimensions = rows.map(function (r) {
-          return {
-            id: r.id.trim(),
-            label: r.label.trim(),
-            match: r.match.split(',').map(function (x) { return x.trim(); }).filter(Boolean),
-            ask: r.ask.trim(),
-            suggest: r.suggest.trim(),
-            ...(r.id.trim() === 'destination' ? { resolve: 'targets' } : {}),
-          };
-        });
-        const ids = new Set();
-        for (const d of dimensions) {
-          if (d.id === '') { setStatus(t('cfgErrId')); return; }
-          if (d.match.length === 0) { setStatus(t('cfgErrMatch')); return; }
-          if (ids.has(d.id)) { setStatus(t('cfgErrDup')); return; }
-          ids.add(d.id);
-        }
-        try {
-          const revision = snapshot && snapshot.revision;
-          const result = await props.update(dimensions, revision);
-          if (result && result.ok === false) {
-            setStatus(result.error ? `${result.error.message} (${result.error.code})` : t('cfgErrSave'));
-            return;
-          }
-          setDirty(false);
-          setStatus(t('cfgSaved'));
-        } catch (error) {
-          setStatus(error instanceof Error ? error.message : String(error));
-        }
-      };
-
-      const inputStyle = {
-        flex: '1 1 120px',
-        minWidth: 0,
-        padding: '3px 6px',
-        border: '0.5px solid var(--dsw-alias-border-l2)',
-        borderRadius: 'var(--dsw-radius-sm, 6px)',
-        background: 'var(--dsw-alias-bg-layer-1)',
-        color: 'var(--dsw-alias-label-primary)',
-        font: 'inherit',
-        fontSize: 11.5,
-      };
-
-      return h('div', { style: { display: 'flex', flexDirection: 'column', gap: 10, color: 'var(--dsw-alias-label-primary)', fontSize: 12 } },
-        h('div', { style: { display: 'flex', alignItems: 'center', gap: 8 } },
-          h('span', { style: { color: 'var(--dsw-alias-label-secondary)', flex: 1 } },
-            snapshot && snapshot.writable === false ? t('cfgReadonly') : t('cfgIntro')),
-          h('button', {
-            type: 'button', onClick: add,
-            style: { border: '0.5px solid var(--dsw-alias-border-l2)', background: 'none', color: 'var(--dsw-alias-label-secondary)', borderRadius: 6, padding: '2px 8px', cursor: 'pointer', font: 'inherit' },
-          }, t('cfgAdd')),
-        ),
-        h('div', { style: { display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' } },
-          h('span', { style: { color: 'var(--dsw-alias-label-secondary)' } }, t('cfgTplLabel')),
-          DIMENSION_TEMPLATES.map(function (tpl) {
+        h('div', { className: 'sd-cfg-levels', role: 'radiogroup', 'aria-label': t('cfgLevelLabel') },
+          LEVEL_COPY.map(function (item) {
+            const active = item.key === current;
             return h('button', {
-              key: tpl.key,
+              key: item.key,
               type: 'button',
-              onClick: function () { applyTemplate(tpl); },
-              style: {
-                border: '0.5px solid var(--dsw-alias-border-l2)',
-                background: 'var(--dsw-alias-bg-layer-2)',
-                color: 'var(--dsw-alias-label-primary)',
-                borderRadius: 999,
-                padding: '2px 10px',
-                cursor: 'pointer',
-                font: 'inherit',
-                fontSize: 11.5,
-              },
-            }, t(tpl.key));
+              role: 'radio',
+              'aria-checked': active,
+              className: 'sd-cfg-level' + (active ? ' sd-cfg-level--on' : ''),
+              disabled: !writable || saving,
+              onClick: function () { choose(item.key); },
+            },
+              h('span', { className: 'sd-cfg-level-name' }, item.label),
+              h('span', { className: 'sd-cfg-level-hint' }, item.hint),
+              active ? h('span', { className: 'sd-cfg-level-mark', 'aria-hidden': true }, '✓') : null,
+            );
           }),
         ),
 
-        rows.map(function (row, index) {
-          return h('div', {
-            key: index,
-            style: {
-              display: 'grid', gridTemplateColumns: '86px 1fr 1fr', gap: '6px 8px',
-              padding: 8, border: '0.5px solid var(--dsw-alias-border-l1)', borderRadius: 8,
-            },
-          },
-            h('span', { style: { gridColumn: '1 / 2', color: 'var(--dsw-alias-label-secondary)', alignSelf: 'center' } }, t('cfgFieldId')),
-            h('input', { value: row.id, onChange: function (e) { edit(index, 'id', e.target.value); }, style: inputStyle, placeholder: 'tone' }),
-            h('span', { style: { alignSelf: 'center', display: 'flex', justifyContent: 'flex-end' } },
-              h('button', {
-                type: 'button', onClick: function () { remove(index); },
-                style: { border: '0.5px solid var(--dsw-alias-border-l2)', background: 'none', color: 'var(--dsw-alias-state-error-primary)', borderRadius: 6, padding: '2px 8px', cursor: 'pointer', font: 'inherit' },
-              }, t('cfgRemove'))),
-            h('span', { style: { color: 'var(--dsw-alias-label-secondary)', alignSelf: 'center' } }, t('cfgFieldLabel')),
-            h('input', { value: row.label, onChange: function (e) { edit(index, 'label', e.target.value); }, style: inputStyle, placeholder: '调性' }),
-            h('span'),
-            h('span', { style: { color: 'var(--dsw-alias-label-secondary)', alignSelf: 'center' } }, t('cfgFieldMatch')),
-            h('div', { style: { gridColumn: '2 / 4', display: 'flex', flexDirection: 'column', gap: 4 } },
-              h('input', { value: row.match, onChange: function (e) { edit(index, 'match', e.target.value); }, style: inputStyle, placeholder: '幽默, 严肃, /字数?\s*\d+/' }),
-              h('span', { style: { fontSize: 10.5, color: 'var(--dsw-alias-label-secondary)' } }, t('cfgMatchHint'))),
-            h('span', { style: { color: 'var(--dsw-alias-label-secondary)', alignSelf: 'center' } }, t('cfgFieldAsk')),
-            h('input', { value: row.ask, onChange: function (e) { edit(index, 'ask', e.target.value); }, style: inputStyle }),
-            h('span'),
-            h('span', { style: { color: 'var(--dsw-alias-label-secondary)', alignSelf: 'center' } }, t('cfgFieldSuggest')),
-            h('input', { value: row.suggest, onChange: function (e) { edit(index, 'suggest', e.target.value); }, style: inputStyle }),
-            h('span'),
-          );
-        }),
-        h('div', { style: { display: 'flex', alignItems: 'center', gap: 8 } },
-          h('button', {
-            type: 'button', onClick: save, disabled: !dirty || busyUnsupported(),
-            style: {
-              border: '0.5px solid var(--dsw-alias-border-l2)', background: 'var(--dsw-alias-bg-layer-2)',
-              color: dirty ? 'var(--dsw-alias-label-primary)' : 'var(--dsw-alias-label-secondary)',
-              borderRadius: 6, padding: '3px 12px', cursor: dirty ? 'pointer' : 'default', font: 'inherit',
-            },
-          }, t('cfgSave')),
-          dirty ? h('button', {
-            type: 'button', onClick: revert,
-            style: { border: '0', background: 'none', color: 'var(--dsw-alias-label-secondary)', cursor: 'pointer', font: 'inherit' },
-          }, t('cfgRevert')) : null,
-          status !== null
-            ? h('span', {
-                role: 'status',
-                style: { color: /失败|错误|fail/i.test(status) ? 'var(--dsw-alias-state-error-primary)' : 'var(--dsw-alias-label-secondary)' },
-              }, status)
-            : null,
-        ),
+        failure !== null
+          ? h('p', { className: 'sd-cfg-error' }, failure)
+          : null,
       );
-
-      function busyUnsupported() { return snapshot != null && snapshot.writable === false; }
     }
 
     /** Active dictionary, read fresh on every call so a locale switch is picked up. */
@@ -1580,22 +1470,22 @@ window.__ModuleLoader__.load({
           return null;
         };
 
-        // The real seat: below the composer card, once a Session exists.
-        // Settings page: edit the dimension table without touching patch.yml.
+        // Settings page: choose how much the enhancer adds. Writes go through
+        // the profile patch, so the change applies without a restart.
         ctx.slots.inject('settings.section', () => ctx.slots.register({
           name: 'settings.section',
-          id: 'shen-deng-dimensions',
+          id: 'shen-deng-level',
           order: 40,
           label: labelThunk(localeSvc),
           inject: () => ({
             translate: makeTranslator(localeSvc),
             form: () => ctx.configForms.get('shen-deng'),
-            update: async (dimensions, revision) => {
+            update: async (patch, revision) => {
               const settings = ctx.remote?.settings;
               if (settings === undefined || typeof settings.update !== 'function') {
                 return { ok: false, error: { message: t0('cfgErrSave'), code: 'no-settings' } };
               }
-              return settings.update('shen-deng', { dimensions }, revision);
+              return settings.update('shen-deng', patch, revision);
             },
           }),
         }, LampSettingsPage));
@@ -1604,7 +1494,7 @@ window.__ModuleLoader__.load({
         // which is exactly the duplication this replaces.
         ctx.slots.inject('settings.section.icon', () => ctx.slots.register({
           name: 'settings.section.icon',
-          id: 'shen-deng-dimensions',
+          id: 'shen-deng-level',
         }, LampSettingsIcon));
 
         ctx.slots.inject('conversation.input.right', () => ctx.slots.register({

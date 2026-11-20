@@ -129,30 +129,65 @@ test('malformed configuration falls back to the built-in six', async () => {
   }
 });
 
-test('configured dimensions replace the built-in set', async () => {
-  const host = makeHost();
-  await apply(host.ctx, {
-    dimensions: [
-      { id: 'tone', label: '调性', match: ['幽默'], ask: '调性？', suggest: '默认克制。' },
-      { id: 'length', label: '篇幅', match: ['字'], ask: '多长？', suggest: '默认 800 字。' },
-    ],
-  });
-  const out = await host.tools.lamp_refine.execute({ prompt: '要幽默一点', include_workspace: false }, execContext());
-  assert.equal(out.total, 2);
-  assert.deepEqual(out.gaps.map((g) => g.id), ['length'], 'tone is settled by 幽默');
-  assert.ok(out.gaps.every(isGap));
+test('a malformed level falls back to medium', async () => {
+  for (const config of [null, {}, { level: 'x' }, { level: null }, { level: 42 }]) {
+    const host = makeHost();
+    await assert.doesNotReject(() => apply(host.ctx, config), `apply(${JSON.stringify(config)})`);
+  }
 });
 
-test('a volatile dimension reference is re-read on every call', async () => {
-  const host = makeHost();
-  const live = { value: [{ id: 'tone', label: '调性', match: ['幽默'], ask: '?', suggest: '默认。' }] };
-  await apply(host.ctx, { dimensions: { get: () => live.value } });
-  const first = await host.tools.lamp_refine.execute({ prompt: '做个东西', include_workspace: false }, execContext());
-  assert.equal(first.total, 1);
-  live.value = [
-    { id: 'a', label: 'A', match: ['x'], ask: '?', suggest: '默认。' },
-    { id: 'b', label: 'B', match: ['y'], ask: '?', suggest: '默认。' },
-  ];
-  const second = await host.tools.lamp_refine.execute({ prompt: '做个东西', include_workspace: false }, execContext());
-  assert.equal(second.total, 2, 'an edit applies without a restart');
+test('the configured level reaches the rewrite prompt', async () => {
+  // Each level must change what the model is told, not just what the UI shows.
+  const seen = [];
+  for (const level of ['low', 'medium', 'high']) {
+    const host = makeHost({
+      get(name) {
+        if (name === 'llm') {
+          return {
+            stream(options) {
+              seen.push(options.messages[0].content[0].text);
+              return (async function* () {
+                yield { type: 'text-delta', text: 'enhanced' };
+                yield { type: 'finish', reason: { kind: 'stop' } };
+              })();
+            },
+          };
+        }
+        if (name === 'agentDefaultModel') return { currentSelection() { return { provider: 'p', model: 'm' }; } };
+        return undefined;
+      },
+    });
+    await apply(host.ctx, { level });
+    await host.tools.lamp_rewrite.execute({ prompt: '做个网站' }, execContext());
+  }
+  assert.equal(seen.length, 3);
+  assert.ok(seen[0].includes('「低」'), 'low is announced to the model');
+  assert.ok(seen[1].includes('「中」'), 'medium is announced');
+  assert.ok(seen[2].includes('「高」'), 'high is announced');
+  // The three must be genuinely different instructions, not the same text.
+  assert.equal(new Set(seen).size, 3, 'each level produces a distinct system prompt');
+});
+
+test('the tool can override the configured level per call', async () => {
+  let sent = null;
+  const host = makeHost({
+    get(name) {
+      if (name === 'llm') {
+        return {
+          stream(options) {
+            sent = options.messages[0].content[0].text;
+            return (async function* () {
+              yield { type: 'text-delta', text: 'x' };
+              yield { type: 'finish', reason: { kind: 'stop' } };
+            })();
+          },
+        };
+      }
+      if (name === 'agentDefaultModel') return { currentSelection() { return { provider: 'p', model: 'm' }; } };
+      return undefined;
+    },
+  });
+  await apply(host.ctx, { level: 'low' });
+  await host.tools.lamp_rewrite.execute({ prompt: '做个网站', level: 'high' }, execContext());
+  assert.ok(sent.includes('「高」'), 'the per-call level wins over the configured one');
 });

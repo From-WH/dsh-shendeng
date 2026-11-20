@@ -1,7 +1,7 @@
 {
   "meta": {
     "title": "Lamp · prompt enhancer",
-    "description": "Light the lamp beside the composer to turn the current prompt into a more complete, more precise instruction. It reads the workspace so vague references like \"that project\" or \"this file\" become real names, fills in deliverable, destination, audience, constraints, acceptance, and scope, then writes the result straight back into the composer with one-step undo."
+    "description": "The enhance button beside the composer turns the current prompt into a more complete, more precise instruction. It reads the workspace so vague references like \"that project\" or \"this file\" become real names, fills in deliverable, destination, audience, constraints, acceptance, and scope, then writes the result straight back into the composer with one-step undo."
   },
   "tool": {
     "lampRewrite": "Enhance prompt",

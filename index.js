@@ -1,23 +1,19 @@
 /**
  * 神灯 (Shen Deng) — Host half.
  *
- * A wish is a target. The lamp reads the workspace, then tells the model how far
- * the user's wish is from a buildable specification: which dimensions are
- * already settled, which are still blank, and what a sensible default is for
- * each blank one. It never invents a requirement; it exposes the missing ones.
+ * The plugin's main surface is the enhance button beside the composer: the
+ * user writes a prompt, presses the lamp, and the text is rewritten into a
+ * complete instruction that already knows the workspace (so "that project"
+ * becomes a real directory name) and is written straight back into the input.
  *
- * Two tools:
- *   `lamp_scan`   — bounded workspace structure (tree, file mix, manifests).
- *   `lamp_refine` — the same scan plus a six-dimension wish audit, a filled
- *                   brief, and one recommended default per open dimension.
+ * Three tools back that:
+ *   `lamp_rewrite` — rewrite a prompt through the configured model.
+ *   `lamp_refine`  — the same six-dimension check, callable directly when the
+ *                    model must decide whether to ask or to build.
+ *   `lamp_scan`    — bounded workspace structure (tree, file mix, manifests).
  *
- * A short prompt section points the model here only when a request is
- * under-specified, so the cost stays near zero on clear requests.
- *
- * The lamp also has a per-Session switch (`/lamp on|off`). Its state is a
- * projection over the command events the framework already logs, so the switch
- * survives a reload without this plugin inventing an event type, and the model
- * and the UI read the same truth.
+ * A short prompt section points the model at `lamp_refine` only when a request
+ * is under-specified, so the cost stays near zero on clear requests.
  */
 
 import z from './vendor/schemastery.mjs';
@@ -788,6 +784,9 @@ async function rewriteForCommand(ctx, draft, agent) {
 /**
  * Projection over the switch's own durable events.
  *
+ * The default is `active: true`: an installed lamp is ready to use, and `/lamp
+ * off` is the opt-out rather than `/lamp on` the opt-in.
+ *
  * It appends no event of its own: `/lamp` already logs `command/run` (with the
  * selection) and `command/done` (with the outcome), both of which every reader
  * of a Session understands. A new event type would have to be `ignorable`, and
@@ -803,7 +802,9 @@ const lampProjection = {
   key: 'shenDeng',
   stateVersion: 1,
   stateSchema: lampState,
-  init: () => ({ active: false, running: null }),
+  // Lit by default: the control is an enhance button beside the composer, so an
+  // install that starts dark looks broken rather than additive.
+  init: () => ({ active: true, running: null }),
   apply: (state, event) => {
     if (event.type === 'command/run' && event.data.name === SWITCH_COMMAND) {
       const wanted = parseLampArgs(event.data.args ?? '');
@@ -964,7 +965,7 @@ export async function apply(ctx, config) {
   ctx.tools.register({
     name: 'lamp_scan',
     description:
-      'Read the session workspace as a bounded structure: a short directory tree, the file-extension mix, and excerpts of project manifests. Use it when you need the layout before deciding where work belongs.',
+      'Read the session workspace as a bounded structure: a short directory tree, the file-extension mix, and excerpts of project manifests. The enhance path uses it to turn vague references into real names; call it yourself when you need the layout before deciding where work belongs.',
     parameters: {
       type: 'object',
       properties: {
@@ -1069,14 +1070,14 @@ export async function apply(ctx, config) {
   ctx.tools.register({
     name: 'lamp_refine',
     description:
-      'Turn a wish into a buildable brief. Reads the workspace, checks the wish against six dimensions (deliverable, destination, audience, constraints, acceptance, scope), and returns the gaps, one recommended default per gap, and a filled brief. Use it before building on an under-specified request. If intent is "ask", answer the question and do not build. Keep every line marked 文中已说明 as the user said it; apply a default only to a 待定 line.',
+      'Check a prompt against six dimensions (deliverable, destination, audience, constraints, acceptance, scope) and return what is missing, one recommended default per gap, and a filled instruction. Use it when a request is under-specified and you must decide whether to ask or to build. If intent is "ask", answer the question and do not build. Keep every line marked 文中已说明 as the user said it; apply a default only to a 待定 line.',
     parameters: {
       type: 'object',
-      required: ['wish'],
+      required: ['prompt'],
       properties: {
-        wish: {
+        prompt: {
           type: 'string',
-          description: "The user's request, close to verbatim. Do not summarise away the ambiguity you are checking for.",
+          description: "The prompt to check, close to verbatim. Do not summarise away the ambiguity you are checking for.",
         },
         path: {
           type: 'string',
@@ -1134,8 +1135,8 @@ export async function apply(ctx, config) {
     },
     async execute(args, exec) {
       if (exec.agent === undefined) throw new Error('lamp_refine needs an owning agent session');
-      const wish = typeof args?.wish === 'string' ? args.wish : '';
-      if (wish.trim() === '') throw new Error('lamp_refine needs a non-empty wish');
+      const wish = typeof args?.prompt === 'string' ? args.prompt : '';
+      if (wish.trim() === '') throw new Error('lamp_refine needs a non-empty prompt');
 
       let scan = null;
       if (args?.include_workspace !== false) {
@@ -1172,14 +1173,14 @@ export async function apply(ctx, config) {
   ctx.tools.register({
     name: 'lamp_rewrite',
     description:
-      'Rewrite a draft request so it is complete and unambiguous before it is sent: keep everything the user already said, fill only what execution genuinely needs (deliverable, destination, audience, constraints, acceptance, scope), and mark what cannot be inferred instead of inventing it. Returns the rewritten text plus which dimensions were still open.',
+      'Enhance a prompt so it is complete and unambiguous before it is sent: keep everything the user already said, ground vague references in the workspace, fill only what execution genuinely needs (deliverable, destination, audience, constraints, acceptance, scope), and mark what cannot be inferred instead of inventing it. Returns the enhanced text plus which dimensions were still open.',
     parameters: {
       type: 'object',
-      required: ['draft'],
+      required: ['prompt'],
       properties: {
-        draft: {
+        prompt: {
           type: 'string',
-          description: 'The text to rewrite, verbatim as the user wrote it.',
+          description: 'The prompt to enhance, verbatim as the user wrote it.',
         },
       },
     },
@@ -1198,13 +1199,13 @@ export async function apply(ctx, config) {
       render: (_args, value) => [{
         type: 'text',
         text: value.ok
-          ? `Rewrite ready${value.gaps.length > 0 ? ` (still open: ${value.gaps.join(', ')})` : ''}:\n\n${value.text}`
-          : `Rewrite unavailable: ${value.reason}`,
+          ? `Enhanced${value.gaps.length > 0 ? ` (still open: ${value.gaps.join(', ')})` : ''}:\n\n${value.text}`
+          : `Enhance unavailable: ${value.reason}`,
       }],
       presentationMeta: (_args, value) => ({ shenDeng: { kind: 'rewrite', ok: value.ok, reason: value.reason, gaps: value.gaps } }),
     },
     async execute(args, exec) {
-      const draft = typeof args?.draft === 'string' ? args.draft.trim() : '';
+      const draft = typeof args?.prompt === 'string' ? args.prompt.trim() : '';
       if (draft === '') {
         return { ok: false, text: '', gaps: [], reason: 'empty-draft' };
       }

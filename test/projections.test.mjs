@@ -14,30 +14,31 @@ const run = (id, args) => ({ type: 'command/run', seq: 1, time: 1, data: { comma
 const done = (id, kind) => ({ type: 'command/done', seq: 2, time: 2, data: { commandId: id, kind } });
 const toolResult = (meta) => ({ type: 'tool/result', seq: 3, time: 3, data: { meta } });
 
-test('the switch starts dark', async () => {
+test('the switch starts lit', async () => {
+  // An installed lamp is ready to use: the control is an enhance button, so a
+  // dark default would look broken until the user discovered /lamp on.
   const { shenDeng } = await projections();
-  assert.deepEqual(shenDeng.wire.view(shenDeng.init()), { active: false, pending: false });
+  assert.deepEqual(shenDeng.wire.view(shenDeng.init()), { active: true, pending: false });
 });
 
 test('a successful /lamp commits the state it named', async () => {
   const { shenDeng } = await projections();
   let state = shenDeng.init();
-  state = shenDeng.apply(state, run('c1', 'on'));
-  assert.deepEqual(shenDeng.wire.view(state), { active: false, pending: true }, 'pending while the command runs');
+  assert.equal(shenDeng.wire.view(state).active, true, 'starts lit');
+  state = shenDeng.apply(state, run('c1', 'off'));
+  assert.deepEqual(shenDeng.wire.view(state), { active: true, pending: true }, 'pending while the command runs');
   state = shenDeng.apply(state, done('c1', 'success'));
-  assert.deepEqual(shenDeng.wire.view(state), { active: true, pending: false });
-  state = shenDeng.apply(state, run('c2', 'off'));
-  state = shenDeng.apply(state, done('c2', 'success'));
   assert.deepEqual(shenDeng.wire.view(state), { active: false, pending: false });
+  state = shenDeng.apply(state, run('c2', 'on'));
+  state = shenDeng.apply(state, done('c2', 'success'));
+  assert.deepEqual(shenDeng.wire.view(state), { active: true, pending: false });
 });
 
 test('a failed /lamp changes nothing', async () => {
   const { shenDeng } = await projections();
   let state = shenDeng.init();
-  state = shenDeng.apply(state, run('c1', 'on'));
-  state = shenDeng.apply(state, done('c1', 'success'));
-  state = shenDeng.apply(state, run('c2', 'off'));
-  state = shenDeng.apply(state, done('c2', 'error'));
+  state = shenDeng.apply(state, run('c1', 'off'));
+  state = shenDeng.apply(state, done('c1', 'error'));
   assert.deepEqual(shenDeng.wire.view(state), { active: true, pending: false }, 'the earlier state survives');
 });
 
@@ -45,9 +46,9 @@ test('an unrecognised argument records no intent', async () => {
   const { shenDeng } = await projections();
   let state = shenDeng.init();
   state = shenDeng.apply(state, run('c1', 'garbage'));
-  assert.deepEqual(shenDeng.wire.view(state), { active: false, pending: false });
+  assert.deepEqual(shenDeng.wire.view(state), { active: true, pending: false });
   state = shenDeng.apply(state, done('c1', 'error'));
-  assert.deepEqual(shenDeng.wire.view(state), { active: false, pending: false });
+  assert.deepEqual(shenDeng.wire.view(state), { active: true, pending: false });
 });
 
 test('unrelated events leave the switch untouched and identity-stable', async () => {

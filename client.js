@@ -2,7 +2,7 @@
  * 神灯 (Shen Deng) — Client half.
  *
  * Renders the two lamp tools in the Chat flow:
- *   `lamp_refine` — the wish audit: six dimensions, which are settled, which
+ *   `lamp_refine` — the prompt check: six dimensions, which are settled, which
  *                    are still blank, and the default offered for each blank one.
  *   `lamp_scan`   — the workspace read: tree, file mix, manifests.
  *
@@ -22,7 +22,7 @@ window.__ModuleLoader__.load({
         lamp: '神灯 · 提示词增强',
         refineTitle: '提示词检查',
         scanTitle: '工作区结构',
-        noWish: '（空的许愿）',
+        noWish: '（空的提示词）',
         settled: '已说明',
         gapHeading: '还缺什么',
         vagueHeading: '这些词不算信息',
@@ -92,7 +92,7 @@ window.__ModuleLoader__.load({
         lamp: 'Lamp · prompt enhancer',
         refineTitle: 'Prompt check',
         scanTitle: 'Workspace structure',
-        noWish: '(empty wish)',
+        noWish: '(empty prompt)',
         settled: 'settled',
         gapHeading: 'Still missing',
         vagueHeading: 'These words carry no information',
@@ -113,7 +113,7 @@ window.__ModuleLoader__.load({
         running: 'Reading the workspace…',
         failed: 'The lamp did not light',
         switchOnTitle: 'Click to turn prompt enhancement off',
-        switchOffTitle: 'Click to light: check the wish when a request is vague',
+        switchOffTitle: 'Click to turn prompt enhancement on',
         switchFailed: 'Switch failed',
         dockTitle: 'Lamp',
         rwAction: 'Enhance prompt',
@@ -823,7 +823,7 @@ window.__ModuleLoader__.load({
           useDisclosure: props.useDisclosure,
           data: data || { score: 0, total: 6, gaps: [] },
           settled: data !== null,
-          wish: args && typeof args.wish === 'string' ? args.wish.trim() : '',
+          wish: args && typeof args.prompt === 'string' ? args.prompt.trim() : '',
         });
       };
     }

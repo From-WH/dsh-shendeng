@@ -18,23 +18,23 @@ test('lamp_refine refuses to run without an owning agent', async () => {
   const host = makeHost();
   await apply(host.ctx, undefined);
   await assert.rejects(
-    () => host.tools.lamp_refine.execute({ wish: 'x' }, { signal: new AbortController().signal }),
+    () => host.tools.lamp_refine.execute({ prompt: 'x' }, { signal: new AbortController().signal }),
     /owning agent session/,
   );
 });
 
-test('lamp_refine refuses an empty wish', async () => {
+test('lamp_refine refuses an empty prompt', async () => {
   const host = makeHost();
   await apply(host.ctx, undefined);
-  for (const args of [{}, { wish: '' }, { wish: '   ' }, { wish: null }]) {
-    await assert.rejects(() => host.tools.lamp_refine.execute(args, execContext()), /non-empty wish/);
+  for (const args of [{}, { prompt: '' }, { prompt: '   ' }, { prompt: null }]) {
+    await assert.rejects(() => host.tools.lamp_refine.execute(args, execContext()), /non-empty prompt/);
   }
 });
 
 test('lamp_refine can skip the workspace read', async () => {
   const host = makeHost();
   await apply(host.ctx, undefined);
-  const out = await host.tools.lamp_refine.execute({ wish: '做个网站', include_workspace: false }, execContext());
+  const out = await host.tools.lamp_refine.execute({ prompt: '做个网站', include_workspace: false }, execContext());
   assert.equal(out.total, 6);
   assert.match(out.facts[0], /未读取工作区/);
 });
@@ -47,7 +47,7 @@ test('lamp_refine reads a real workspace and honours the scan bounds', async () 
   }, 'bounds');
   const host = makeHost({ workingDirectory: { get: () => root }, fs: diskFs() });
   await apply(host.ctx, undefined);
-  const out = await host.tools.lamp_refine.execute({ wish: '把 alpha 改一下' }, execContext());
+  const out = await host.tools.lamp_refine.execute({ prompt: '把 alpha 改一下' }, execContext());
   assert.ok(out.facts.some((f) => f.includes('个文件')), 'the scan reports counts');
   assert.equal(out.targets.includes('alpha'), true, 'the real directory name is matched');
 });
@@ -91,10 +91,17 @@ test('the prompt section follows the switch', async () => {
 });
 
 test('the prompt section disappears when the tool is not visible', async () => {
+  // The lamp is lit by default, so the section is present — unless the scope
+  // cannot see lamp_refine, which is the condition this test isolates.
   const host = makeHost();
   await apply(host.ctx, undefined);
-  const text = host.sections[0].text({ scope: {}, agent: { session: {} } });
-  assert.equal(text.length, 0, 'tools.get returning a value means lit; here state is dark');
+  const visible = host.sections[0].text({ scope: {}, agent: { session: {} } });
+  assert.ok(visible.length > 0, 'lit and visible means the section is injected');
+
+  const hiddenHost = makeHost({ tools: { register: () => {}, get: () => undefined } });
+  await apply(hiddenHost.ctx, undefined);
+  const hidden = hiddenHost.sections[0].text({ scope: {}, agent: { session: {} } });
+  assert.equal(hidden.length, 0, 'an invisible tool hides the section');
 });
 
 test('/lamp accepts on, off and nothing else', async () => {
@@ -117,7 +124,7 @@ test('malformed configuration falls back to the built-in six', async () => {
   for (const config of [null, {}, { dimensions: null }, { dimensions: 'x' }, { dimensions: [null] }, { dimensions: [{ id: 'a', match: [] }] }]) {
     const host = makeHost();
     await assert.doesNotReject(() => apply(host.ctx, config), `apply(${JSON.stringify(config)})`);
-    const out = await host.tools.lamp_refine.execute({ wish: '做个网站', include_workspace: false }, execContext());
+    const out = await host.tools.lamp_refine.execute({ prompt: '做个网站', include_workspace: false }, execContext());
     assert.equal(out.total, 6, `built-ins for ${JSON.stringify(config)}`);
   }
 });
@@ -130,7 +137,7 @@ test('configured dimensions replace the built-in set', async () => {
       { id: 'length', label: '篇幅', match: ['字'], ask: '多长？', suggest: '默认 800 字。' },
     ],
   });
-  const out = await host.tools.lamp_refine.execute({ wish: '要幽默一点', include_workspace: false }, execContext());
+  const out = await host.tools.lamp_refine.execute({ prompt: '要幽默一点', include_workspace: false }, execContext());
   assert.equal(out.total, 2);
   assert.deepEqual(out.gaps.map((g) => g.id), ['length'], 'tone is settled by 幽默');
   assert.ok(out.gaps.every(isGap));
@@ -140,12 +147,12 @@ test('a volatile dimension reference is re-read on every call', async () => {
   const host = makeHost();
   const live = { value: [{ id: 'tone', label: '调性', match: ['幽默'], ask: '?', suggest: '默认。' }] };
   await apply(host.ctx, { dimensions: { get: () => live.value } });
-  const first = await host.tools.lamp_refine.execute({ wish: '做个东西', include_workspace: false }, execContext());
+  const first = await host.tools.lamp_refine.execute({ prompt: '做个东西', include_workspace: false }, execContext());
   assert.equal(first.total, 1);
   live.value = [
     { id: 'a', label: 'A', match: ['x'], ask: '?', suggest: '默认。' },
     { id: 'b', label: 'B', match: ['y'], ask: '?', suggest: '默认。' },
   ];
-  const second = await host.tools.lamp_refine.execute({ wish: '做个东西', include_workspace: false }, execContext());
+  const second = await host.tools.lamp_refine.execute({ prompt: '做个东西', include_workspace: false }, execContext());
   assert.equal(second.total, 2, 'an edit applies without a restart');
 });
